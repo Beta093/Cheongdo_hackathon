@@ -1,3 +1,5 @@
+import base64
+import binascii
 from datetime import date, datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -57,8 +59,36 @@ class LogEntry(LogInput):
     sessionId: str
 
 
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_IMAGE_BASE64 = 4 * ((MAX_IMAGE_BYTES + 2) // 3)
+
+
+class ChatImage(StrictModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+    mimeType: Literal["image/jpeg", "image/png", "image/webp"]
+    data: str = Field(min_length=1, max_length=MAX_IMAGE_BASE64, repr=False)
+
+    @model_validator(mode="after")
+    def validate_image(self):
+        try:
+            raw = base64.b64decode(self.data, validate=True)
+        except (ValueError, binascii.Error):
+            raise ValueError("사진 인코딩을 확인해 주세요.") from None
+        if not raw or len(raw) > MAX_IMAGE_BYTES:
+            raise ValueError("사진은 5MB 이하만 첨부할 수 있습니다.")
+        valid = {
+            "image/jpeg": raw.startswith(b"\xff\xd8\xff"),
+            "image/png": raw.startswith(b"\x89PNG\r\n\x1a\n"),
+            "image/webp": raw.startswith(b"RIFF") and raw[8:12] == b"WEBP",
+        }
+        if not valid[self.mimeType]:
+            raise ValueError("사진 형식과 내용을 확인해 주세요.")
+        return self
+
+
 class ChatInput(StrictModel):
     message: str = Field(min_length=1, max_length=2000)
+    image: ChatImage | None = None
 
 
 class Source(StrictModel):

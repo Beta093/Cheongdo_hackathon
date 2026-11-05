@@ -91,6 +91,13 @@
           <form id="chat-form">
             <label for="question">물어볼 내용</label>
             <textarea id="question" name="question" maxlength="2000" rows="3" required placeholder="예: 수확 준비 점검을 오늘 일정으로 잡아줘"></textarea>
+            <div class="chat-attachment">
+              <label for="chat-image">사진 선택 (JPEG·PNG·WebP, 5MB 이하)</label>
+              <input id="chat-image" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="chat-image-info chat-image-error">
+              <p id="chat-image-info" class="fine" role="status" hidden></p>
+              <button id="remove-chat-image" class="secondary" type="button" hidden>사진 제거</button>
+              <p id="chat-image-error" class="fine" role="alert"></p>
+            </div>
             <div class="form-bottom"><span id="char-count" class="fine">0 / 2,000자</span><button id="send" class="primary" type="submit">보내기</button></div>
           </form>
           <button id="retry-chat" class="secondary" type="button" hidden>질문 다시 보내기</button>

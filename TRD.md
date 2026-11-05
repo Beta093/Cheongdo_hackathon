@@ -65,3 +65,7 @@ node --check frontend/app.js
 ```
 
 향후 배포 검증: az bicep build --file infra/main.bicep, azd up. 이번 작업에서 실행하지 않았다.
+
+## 채팅 이미지 입력
+
+POST /api/farms/{id}/chat의 JSON에 선택 image={mimeType,data}를 추가한다. JPEG·PNG·WebP만 허용하며 엄격한 base64 디코딩, 최대 5MB, 매직 바이트를 검증하고 위반은 422로 처리한다. 채팅 JSON 본문만 base64 크기와 기존 본문 여유만큼 확장한다. 다른 엔드포인트 제한은 유지한다. 이미지 입력은 선택 인자로 전달하여 세션 send의 blob attachment(data, mimeType, displayName)에 넣는다. 첨부를 대화 저장소·로그·오류 응답에 남기지 않는다. 기존 권한 허용 목록·세션 격리·승인 전 일정 저장 금지를 유지한다. CSP 변경 없이 파일명과 크기를 표시한다. 실제 연결 검증은 별도로 필요하다.

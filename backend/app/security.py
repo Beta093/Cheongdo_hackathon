@@ -1,8 +1,11 @@
+import re
 import time
 from collections import deque
 from threading import RLock
 
 from starlette.responses import JSONResponse
+
+from backend.app.schemas import MAX_IMAGE_BASE64
 
 
 class RateLimiter:
@@ -58,14 +61,18 @@ class SecurityMiddleware:
             await send(message)
 
         if scope["method"] == "POST" and scope["path"].startswith("/api/"):
+            content_type = dict(scope.get("headers", [])).get(b"content-type", b"").split(b";", 1)[0]
+            image_chat = (content_type == b"application/json" and
+                          bool(re.fullmatch(r"/api/farms/[^/]+/chat", scope["path"])))
+            limit = MAX_IMAGE_BASE64 + self.max_body_bytes if image_chat else self.max_body_bytes
             body = bytearray()
             while True:
                 message = await receive()
                 if message["type"] == "http.disconnect":
                     return
                 body.extend(message.get("body", b""))
-                if len(body) > self.max_body_bytes:
-                    await JSONResponse({"detail": "요청이 너무 큽니다."}, status_code=413)(
+                if len(body) > limit:
+                    await JSONResponse({"detail": "요청이 너무 큽니다."}, status_code=422 if image_chat else 413)(
                         scope, receive, secure_send)
                     return
                 if not message.get("more_body", False):

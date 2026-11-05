@@ -54,3 +54,9 @@ E2E는 실행하지 않는다. 이후 준비된 환경에서 e2e 디렉터리의
 6. 실제 농업 근거를 검토한 뒤 배포 URL에서 사용자 흐름 확인.
 
 구현 파일·테스트·문서 작성은 완료다. 테스트 통과·실제 연동·배포 스모크는 완료가 아니다.
+
+## 채팅 이미지 검증
+
+backend/tests/test_chat_image.py: JPEG·PNG·WebP 첨부 성공, 기존 글 요청 호환, 가짜 모델 이미지 수신, blob 전달과 세션 정리, 형식·매직 바이트·base64·5MB 초과 422, 오류 응답의 첨부 비노출, 세션 필수, 승인 전 일정 미저장, 다른 본문 제한 유지. 실제 외부 연결 및 E2E는 실행하지 않는다.
+
+이번 첨부 작업 검증: 임시 가상환경에서 `python.exe -m pytest backend -q` 및 `python.exe -m ruff check backend e2e/server.py`를 시도했으나 실행 파일 접근 거부로 실행되지 않았다. 테스트 통과는 미확인이다. `node --check frontend/app.js`, `node --check e2e/flow.spec.js`, `git diff --check`는 통과했다. 로컬 SDK 소스도 접근 거부로 읽지 못했으므로 실제 세션 연동 호환성은 후속 검증이 필요하다.

@@ -735,3 +735,7 @@ body, body.has-tabbar {
 @supports not selector(::-webkit-scrollbar) {
   #screen { scrollbar-width: thin; }
 }
+
+.chat-attachment { margin-block: .75rem; }
+.chat-attachment input { max-width: 100%; font: inherit; }
+.chat-attachment .fine { overflow-wrap: anywhere; }
