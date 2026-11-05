@@ -1,5 +1,5 @@
 // API 서비스 (로컬 or 배포된 백엔드 URL)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
 
 export const api = {
   // 데모 농장 조회

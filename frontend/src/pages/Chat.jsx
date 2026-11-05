@@ -7,7 +7,7 @@ export default function Chat() {
   const navigate = useNavigate();
   
   // Step 관리
-  const [step, setStep] = useState('input');  // input → masking → chat
+  const [step, setStep] = useState('chat');  // input → masking → chat
   
   // Step 1: 입력
   const [userInput, setUserInput] = useState('');
@@ -58,7 +58,7 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/farms/demo/mask', {
+      const response = await fetch('http://localhost:8001/api/farms/demo/mask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: userInput })
@@ -122,7 +122,7 @@ export default function Chat() {
         formData.append('message', userInput || '이 사진을 분석해주세요');
         formData.append('image', selectedImage);
         
-        const response = await fetch('http://localhost:8000/api/farms/demo/chat-image', {
+        const response = await fetch('http://localhost:8001/api/farms/demo/chat-image', {
           method: 'POST',
           body: formData
         });
