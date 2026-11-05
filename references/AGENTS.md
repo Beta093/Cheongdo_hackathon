@@ -9,19 +9,17 @@ AI 코딩 에이전트(GitHub Copilot 계열)를 위한 프로젝트 지침. 상
 - AI 코딩 도구는 **VS Code + GitHub Copilot, GitHub Copilot CLI, GitHub Copilot app** 만 사용한다. 타사 AI 코딩 도구 사용 금지.
 - 앱의 필수 기술: **GitHub Copilot SDK** 와 **Microsoft Agent Framework**.
 - Azure 배포 필수, 기본 도메인(`*.azurecontainerapps.io` 등) 사용. 로그인 없이 핵심 기능 체험 가능해야 한다.
-- 저장소 루트에 `PRD.md`, `TRD.md` 유지. 제출 이슈·코드에 비밀 정보 금지.
+- 저장소 루트에 `PRD.md`, `TRD.md` 유지 (현재 초안은 `references/`에 있으므로 제출 전 루트로 이동/복사). 제출 이슈·코드에 비밀 정보 금지.
 
-## 스택 (TRD 기준)
-- Backend: Python 3.12, FastAPI, Microsoft Agent Framework, GitHub Copilot SDK
-- Frontend: React + Vite + TypeScript (한국어 UI, 모바일 우선)
-- Azure: Container Apps, Cosmos DB, Key Vault, Application Insights, Bicep/azd
+## 스택 (TRD 기준, 2시간 P0)
+- Backend: Python 3.12, FastAPI, Microsoft Agent Framework, GitHub Copilot SDK (버전 고정)
+- Frontend: 단일 페이지 UI (한국어, 모바일 우선)
+- Azure: Container Apps, ACR, Log Analytics, `azd` (Cosmos DB·Key Vault·App Insights는 P1)
 
 ## 명령어 (구현 후 실제 값으로 갱신)
 ```
 backend:  pytest            # 테스트
           ruff check .      # 린트
-frontend: npm test / npm run lint / npm run build
-e2e:      npx playwright test
 deploy:   azd up
 ```
 
@@ -41,7 +39,7 @@ deploy:   azd up
 6. AI 출력에는 항상 "AI 생성" 라벨을 표시한다.
 
 ## 보안
-- 비밀·토큰·키를 커밋하지 않는다 (`.env` 무시, Key Vault/Managed Identity 사용).
+- 비밀·토큰·키를 커밋하지 않는다 (`.env` 무시, Container Apps secret 사용).
 - 입력 검증, 속도 제한, 로그에 개인정보/원문 과다 기록 금지.
 
 ## 작업 방식
