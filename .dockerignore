@@ -9,6 +9,7 @@ venv
 .azure
 references
 backend/tests
+e2e
 node_modules
 *.log
 *.pem

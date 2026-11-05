@@ -10,6 +10,8 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
+<div class="phone">
+<div id="screen" class="phone-screen">
   <a class="skip" href="#main">본문으로 건너뛰기</a>
   <header class="site-header">
     <a class="brand" href="#main" aria-label="감잡아 홈">
@@ -19,13 +21,32 @@
     <span class="header-note">청도반시 농사 수첩</span>
   </header>
   <main id="main" class="shell">
-    <section class="hero" aria-labelledby="welcome">
+    <section id="hero" class="hero" aria-labelledby="welcome">
       <div class="hero-copy">
         <p class="masthead"><span>청도 반시 농가용</span><span>11월 · 수확, 곶감 깎기</span></p>
         <h1 id="welcome">오늘 과원에서<br>할 일 보기</h1>
         <p class="lead">자료 보고, 궁금한 건 묻고, 내가 확인한 일만 달력에 적습니다.</p>
         <button id="start" class="primary cta" type="button">데모 과원 열기</button>
         <p class="fine">로그인 없음 · 임시 세션 · 현장 측정값은 들어 있지 않음</p>
+        <details class="sources registration">
+          <summary>내 과원 직접 등록</summary>
+          <form id="farm-form" class="record-form">
+            <label for="new-farm-name">과원 이름</label>
+            <input id="new-farm-name" name="name" required maxlength="80" autocomplete="off">
+            <label for="farm-region">지역 (읍·면)</label>
+            <select id="farm-region" name="region" required>
+              <option value="" disabled selected>선택하세요</option>
+              <option>청도읍</option><option>화양읍</option><option>각남면</option><option>각북면</option>
+              <option>금천면</option><option>매전면</option><option>운문면</option><option>이서면</option><option>풍각면</option>
+            </select>
+            <label for="farm-year">식재 연도</label>
+            <input id="farm-year" name="plantedYear" type="number" min="1900" step="1" required>
+            <label for="farm-area">면적 (㎡)</label>
+            <input id="farm-area" name="areaM2" type="number" min="0.01" max="10000000" step="any" required>
+            <div class="form-bottom"><button id="register-farm" class="primary" type="submit">과원 등록</button></div>
+            <p id="farm-status" class="fine" role="status" aria-live="polite"></p>
+          </form>
+        </details>
         <ol class="steps" aria-label="쓰는 순서">
           <li><span class="step-no" aria-hidden="true">1</span>근거 자료 보기</li>
           <li><span class="step-no" aria-hidden="true">2</span>모르는 것 묻기</li>
@@ -47,20 +68,18 @@
         <section class="farm-strip" aria-label="과원 정보">
           <div><span class="eyebrow">데모 과원</span><h2 id="farm-name">청도반시 데모 과원</h2></div>
           <p id="farm-context"></p>
+          <p id="weather-status" class="fine" role="status" aria-live="polite">날씨 정보 없음</p>
         </section>
         <p id="model-banner" class="notice"></p>
       </div>
-      <nav class="tabs" aria-label="쓰는 순서대로 이동">
-        <a href="#today"><span class="tab-no" aria-hidden="true">1</span>오늘 할 일</a><a href="#chat"><span class="tab-no" aria-hidden="true">2</span>묻기</a><a href="#calendar"><span class="tab-no" aria-hidden="true">3</span>일정 승인·확인</a>
-      </nav>
       <div class="columns desk">
-        <section id="today" class="panel panel-today" aria-labelledby="today-title">
+        <section id="today" class="panel panel-today" role="tabpanel" tabindex="0" aria-labelledby="today-title">
           <div class="section-heading"><div class="heading-text"><span class="sec-no" aria-hidden="true">1</span><span class="eyebrow" id="today-date"></span><h2 id="today-title">오늘 할 일</h2></div><span class="ai-label">AI 생성</span></div>
           <p class="muted">검토한 자료에 나온 작업만 적었습니다. 일정으로 잡으려면 항목 아래 버튼을 누르세요.</p>
           <div id="today-content" aria-live="polite"></div>
           <button id="retry-today" class="secondary" type="button" hidden>다시 불러오기</button>
         </section>
-        <section id="chat" class="panel panel-chat" aria-labelledby="chat-title">
+        <section id="chat" class="panel panel-chat" role="tabpanel" tabindex="0" aria-labelledby="chat-title" hidden>
           <div class="section-heading"><div class="heading-text"><span class="sec-no" aria-hidden="true">2</span><h2 id="chat-title">농사 질문</h2></div><span class="ai-label">AI 생성</span></div>
           <p class="muted">수확, 곶감, 일정 잡기 등 궁금한 걸 적어 주세요. 답에 붙은 일정 제안은 승인해야 달력에 들어갑니다.</p>
           <div class="quick-questions" aria-label="질문 예시">
@@ -76,14 +95,56 @@
           </form>
           <button id="retry-chat" class="secondary" type="button" hidden>질문 다시 보내기</button>
         </section>
-        <section id="calendar" class="panel panel-calendar" aria-labelledby="calendar-title">
+        <section id="calendar" class="panel panel-calendar" role="tabpanel" tabindex="0" aria-labelledby="calendar-title" hidden>
           <div class="section-heading"><div class="heading-text"><span class="sec-no" aria-hidden="true">3</span><span class="eyebrow">내가 승인한 것만</span><h2 id="calendar-title">일정</h2></div><button id="refresh-calendar" class="secondary" type="button">새로고침</button></div>
           <p class="muted">승인한 일정이 날짜와 함께 여기 적힙니다.</p>
           <div id="calendar-content" aria-live="polite"></div>
         </section>
+        <section id="records" class="panel panel-records" role="tabpanel" tabindex="0" aria-labelledby="records-title" hidden>
+          <div class="section-heading"><div class="heading-text"><span class="eyebrow">내가 직접 적은 것</span><h2 id="records-title">작업·수확 기록</h2></div></div>
+          <p class="muted">한 일, 본 증상, 수확량을 날짜와 함께 적어 둡니다.</p>
+          <form id="log-form" class="record-form">
+            <label for="log-type">기록 종류</label>
+            <select id="log-type" name="type"><option value="work">작업 완료</option><option value="symptom">증상 메모</option><option value="harvest">수확</option></select>
+            <label for="log-date">기록 날짜</label>
+            <input id="log-date" name="date" type="date" min="1900-01-01" required>
+            <label for="log-note">작업·증상 메모</label>
+            <textarea id="log-note" name="note" rows="3" maxlength="2000" required></textarea>
+            <div id="harvest-fields" hidden>
+              <label for="log-amount">수확량 (kg)</label>
+              <input id="log-amount" name="amount" type="number" min="0.01" max="10000000" step="any" disabled>
+            </div>
+            <div class="form-bottom"><button id="save-log" class="primary" type="submit">기록 저장</button></div>
+          </form>
+          <p id="log-status" class="fine" role="status" aria-live="polite"></p>
+          <h3 class="records-list-title">적어 둔 기록</h3>
+          <div id="log-content" aria-live="polite"></div>
+        </section>
       </div>
     </div>
-    <footer>AI 답변은 현장 판단을 대신하지 않습니다. 근거가 부족하면 청도군 농업기술센터에 확인하세요.<br>일정과 대화는 임시 저장이라, 세션이 끝나거나 서버가 다시 켜지면 지워집니다.</footer>
+    <footer>AI 답변은 현장 판단을 대신하지 않습니다. 근거가 부족하면 청도군 농업기술센터에 확인하세요.<br>과원·기록·일정은 임시 세션에 보관됩니다. 세션 만료 후에는 다시 시작해 주세요.</footer>
   </main>
+</div>
+      <nav id="tabbar" class="tabbar" aria-label="작업 메뉴" hidden>
+        <div class="tabbar-list" role="tablist" aria-label="작업 메뉴">
+          <button id="tab-today" class="tabbar-tab" type="button" role="tab" aria-selected="true" aria-controls="today" tabindex="0">
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7l2 2 3-4M12 7h8M4 16l2 2 3-4M12 16h8"/></svg>
+            <span>오늘 할 일</span>
+          </button>
+          <button id="tab-chat" class="tabbar-tab" type="button" role="tab" aria-selected="false" aria-controls="chat" tabindex="-1">
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>
+            <span>농사 질문</span>
+          </button>
+          <button id="tab-calendar" class="tabbar-tab" type="button" role="tab" aria-selected="false" aria-controls="calendar" tabindex="-1">
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16v14H4zM4 10h16M8 3v5M16 3v5"/></svg>
+            <span>일정</span>
+          </button>
+          <button id="tab-records" class="tabbar-tab" type="button" role="tab" aria-selected="false" aria-controls="records" tabindex="-1">
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h3"/></svg>
+            <span>기록</span>
+          </button>
+        </div>
+      </nav>
+</div>
 </body>
 </html>

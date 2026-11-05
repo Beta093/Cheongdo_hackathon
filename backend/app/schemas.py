@@ -1,11 +1,60 @@
 from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class FarmInput(StrictModel):
+    name: str = Field(min_length=1, max_length=80)
+    cultivar: Literal["청도반시"] = "청도반시"
+    region: Literal["청도읍", "화양읍", "각남면", "각북면", "금천면", "매전면", "운문면", "이서면", "풍각면"]
+    plantedYear: int = Field(strict=True, ge=1900)
+    areaM2: float = Field(gt=0, le=10000000, allow_inf_nan=False, strict=True)
+
+    @field_validator("plantedYear")
+    @classmethod
+    def planting_year(cls, value: int) -> int:
+        if value > datetime.now(ZoneInfo("Asia/Seoul")).year:
+            raise ValueError("식재 연도는 올해까지 입력할 수 있습니다.")
+        return value
+
+
+class LogInput(StrictModel):
+    type: Literal["work", "symptom", "harvest"]
+    date: date
+    note: str = Field(min_length=1, max_length=2000)
+    amount: float | None = Field(default=None, gt=0, le=10000000,
+                                 allow_inf_nan=False, strict=True)
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def calendar_date(cls, value):
+        if not isinstance(value, (str, date)) or isinstance(value, datetime):
+            raise ValueError("날짜를 입력하세요.")
+        if isinstance(value, str):
+            if len(value) != 10 or value[4] != "-" or value[7] != "-":
+                raise ValueError("날짜는 YYYY-MM-DD 형식입니다.")
+            value = date.fromisoformat(value)
+        if not date(1900, 1, 1) <= value <= datetime.now(ZoneInfo("Asia/Seoul")).date():
+            raise ValueError("기록 날짜는 1900년부터 오늘까지입니다.")
+        return value
+
+    @model_validator(mode="after")
+    def harvest_amount(self):
+        if (self.type == "harvest") != (self.amount is not None):
+            raise ValueError("수확 기록에만 양수 수확량(kg)을 입력하세요.")
+        return self
+
+
+class LogEntry(LogInput):
+    id: str
+    farmId: str
+    sessionId: str
 
 
 class ChatInput(StrictModel):

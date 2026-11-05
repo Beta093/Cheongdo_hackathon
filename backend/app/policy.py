@@ -24,9 +24,11 @@ PATTERNS = [
 
 
 def check_text(text: str) -> None:
-    token = os.environ.get("COPILOT_GITHUB_TOKEN", "")
-    if token and token in text:
-        raise PolicyError("secret_in_output")
+    for key in ("COPILOT_GITHUB_TOKEN", "WEATHER_API_KEY", "COSMOS_KEY",
+                "APPLICATIONINSIGHTS_CONNECTION_STRING"):
+        token = os.environ.get(key, "")
+        if token and token in text:
+            raise PolicyError("secret_in_output")
     normalized = unicodedata.normalize("NFKC", text).lower()
     normalized = "".join(char for char in normalized
                          if not char.isspace() and unicodedata.category(char) != "Cf")

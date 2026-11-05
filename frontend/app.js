@@ -7,6 +7,11 @@ let lastQuestion = "";
 let chatRetries = 0;
 let todayRetries = 0;
 let storageAvailable = true;
+let farmId = "demo";
+let openingFarm = false;
+let pendingWrites = 0;
+let todayRequest = 0;
+const farmPath = (suffix) => `/farms/${encodeURIComponent(farmId)}/${suffix}`;
 
 function newSessionId() {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -82,14 +87,16 @@ function sources(items = []) {
 function modelBanner(mode) {
   $("model-banner").textContent = mode === "fake"
     ? "테스트용 가짜 모델 모드입니다. 실제 AI 모델 응답이 아닙니다. 자료가 검토되기 전에는 작업·일정 제안이 제한됩니다."
-    : "AI 생성 답변은 근거와 함께 확인하세요. 날씨 정보 없음 · 현장 측정 정보 없음";
+    : "AI 생성 답변은 근거와 함께 확인하세요. 현장 측정 정보 없음";
 }
 
 async function loadToday() {
+  const requestId = ++todayRequest;
   $("retry-today").hidden = true;
   $("today-content").replaceChildren(element("p", "자료를 확인하고 있습니다…", "empty"));
   try {
-    const data = await (await api("/farms/demo/today")).json();
+    const data = await (await api(farmPath("today"))).json();
+    if (requestId !== todayRequest) return;
     modelBanner(data.model_mode);
     $("today-date").textContent = `${data.date} · 서울 기준`;
     const nodes = [];
@@ -110,15 +117,18 @@ async function loadToday() {
     nodes.push(element("p", data.weather, "fine"));
     $("today-content").replaceChildren(...nodes);
   } catch (error) {
+    if (requestId !== todayRequest) return;
     $("today-content").replaceChildren(element("p", friendlyError(error), "empty"));
     $("retry-today").hidden = todayRetries >= 2;
   }
 }
 
 async function loadCalendar() {
+  const requestedFarm = farmId;
   $("refresh-calendar").disabled = true;
   try {
-    const items = await (await api("/farms/demo/calendar")).json();
+    const items = await (await api(farmPath("calendar"))).json();
+    if (requestedFarm !== farmId) return;
     const nodes = items.map((event) => {
       const card = element("article", undefined, "card");
       card.append(element("div", event.date, "calendar-date"), badges(event.evidence),
@@ -127,6 +137,7 @@ async function loadCalendar() {
     });
     $("calendar-content").replaceChildren(...(nodes.length ? nodes : [element("p", "아직 승인한 일정이 없습니다.", "empty")]));
   } catch (error) {
+    if (requestedFarm !== farmId) return;
     $("calendar-content").replaceChildren(element("p", friendlyError(error), "empty"));
   } finally {
     $("refresh-calendar").disabled = false;
@@ -145,15 +156,19 @@ function renderProposal(proposal) {
     const button = element("button", label, action === "approve" ? "primary" : "secondary");
     button.type = "button";
     button.addEventListener("click", async () => {
+      pendingWrites += 1;
       for (const control of actions.children) control.disabled = true;
       try {
         await api(`/proposals/${encodeURIComponent(proposal.id)}/${action}`, { method: "POST" });
         status.textContent = action === "approve" ? "승인되었습니다. 일정 목록에 추가했어요." : "거절했습니다. 일정은 저장되지 않았어요.";
         actions.remove();
         await loadCalendar();
+        if (action === "approve") await loadToday();
       } catch (error) {
         status.textContent = friendlyError(error);
         for (const control of actions.children) control.disabled = false;
+      } finally {
+        pendingWrites -= 1;
       }
     });
     actions.append(button);
@@ -208,7 +223,7 @@ async function readSSE(response, handle) {
 }
 
 async function sendQuestion(question, isRetry = false) {
-  if (busy || !question.trim() || question.length > 2000) return;
+  if (busy || openingFarm || !question.trim() || question.length > 2000) return;
   busy = true;
   $("send").disabled = true;
   $("retry-chat").hidden = true;
@@ -224,10 +239,10 @@ async function sendQuestion(question, isRetry = false) {
   let receivedMessage = false;
   let receivedError = false;
   try {
-    const response = await api("/farms/demo/chat", { method: "POST", body: JSON.stringify({ message: question }) });
+    const response = await api(farmPath("chat"), { method: "POST", body: JSON.stringify({ message: question }) });
     await readSSE(response, (name, data) => {
       if (name === "status") $("chat-status").textContent = data.text;
-      if (name === "tool_call") $("chat-status").textContent = data.name === "search_knowledge" ? "근거 자료를 검색하고 있습니다…" : "승인할 일정 제안을 준비하고 있습니다…";
+      if (name === "tool_call") $("chat-status").textContent = "과원과 근거 자료를 확인하고 있습니다…";
       if (name === "message" && !receivedMessage) {
         receivedMessage = true;
         modelBanner(data.model_mode);
@@ -253,29 +268,49 @@ async function sendQuestion(question, isRetry = false) {
   }
 }
 
+const tabs = [...document.querySelectorAll('.tabbar [role="tab"]')];
+function selectTab(panelId, { focusTab = false } = {}) {
+  for (const tab of tabs) {
+    const selected = tab.getAttribute("aria-controls") === panelId;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    $(tab.getAttribute("aria-controls")).hidden = !selected;
+    if (selected && focusTab) tab.focus();
+  }
+  $("screen").scrollTop = 0;
+}
+tabs.forEach((tab, index) => {
+  tab.addEventListener("click", () => selectTab(tab.getAttribute("aria-controls")));
+  tab.addEventListener("keydown", (event) => {
+    const moves = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 };
+    if (!(event.key in moves)) return;
+    event.preventDefault();
+    const next = tabs[(moves[event.key] + tabs.length) % tabs.length];
+    selectTab(next.getAttribute("aria-controls"), { focusTab: true });
+  });
+});
+
 function updateCount() { $("char-count").textContent = `${$("question").value.length.toLocaleString("ko-KR")} / 2,000자`; }
 function fillQuestion(text) {
   $("question").value = text;
   updateCount();
+  selectTab("chat");
   $("question").focus();
-  $("chat").scrollIntoView();
 }
 
 $("start").addEventListener("click", async () => {
+  if (openingFarm || busy || pendingWrites) return;
+  openingFarm = true;
   $("start").disabled = true;
   $("global-status").textContent = "데모 과원을 준비하고 있습니다…";
   try {
     const farm = await (await api("/farms/demo")).json();
-    $("farm-name").textContent = farm.name;
-    $("farm-context").textContent = `${farm.region} · ${farm.weather}`;
-    modelBanner(farm.model_mode);
-    $("workspace").hidden = false;
-    $("start").hidden = true;
-    $("global-status").textContent = storageAvailable ? "데모 과원이 준비되었습니다." : "브라우저 저장소를 사용할 수 없어 이 페이지에서만 세션이 유지됩니다.";
-    await Promise.all([loadToday(), loadCalendar()]);
+    await openFarm(farm);
   } catch (error) {
     $("global-status").textContent = friendlyError(error);
     $("start").disabled = false;
+  } finally {
+    openingFarm = false;
   }
 });
 $("chat-form").addEventListener("submit", (event) => { event.preventDefault(); sendQuestion($("question").value.trim()); });
@@ -284,3 +319,136 @@ $("retry-chat").addEventListener("click", () => { chatRetries += 1; sendQuestion
 $("retry-today").addEventListener("click", () => { todayRetries += 1; loadToday(); });
 $("refresh-calendar").addEventListener("click", loadCalendar);
 document.querySelectorAll("[data-question]").forEach((button) => button.addEventListener("click", () => fillQuestion(button.dataset.question)));
+
+async function openFarm(farm) {
+  farmId = farm.id;
+  if (storageAvailable) {
+    try { localStorage.setItem("gamjaba-farm", farmId); } catch { /* Session still works in memory. */ }
+  }
+  todayRetries = chatRetries = 0;
+  lastQuestion = "";
+  $("chat-messages").replaceChildren();
+  $("chat-status").textContent = "";
+  $("retry-chat").hidden = true;
+  $("question").value = "";
+  updateCount();
+  $("farm-name").textContent = farm.name;
+  document.querySelector(".farm-strip .eyebrow").textContent = farm.isDemo ? "데모 과원" : "내 과원";
+  $("farm-context").textContent = `${farm.region} · ${farm.cultivar}`;
+  modelBanner(farm.model_mode);
+  $("workspace").hidden = false;
+  $("start").hidden = true;
+  $("hero").hidden = true;
+  $("tabbar").hidden = false;
+  document.body.classList.add("has-tabbar");
+  selectTab("today");
+  $("global-status").textContent = storageAvailable ? "과원이 준비되었습니다." : "이 페이지에서만 세션이 유지됩니다.";
+  await Promise.all([loadToday(), loadCalendar(), loadLogs(), loadWeather()]);
+}
+
+async function loadWeather() {
+  const requestedFarm = farmId;
+  $("weather-status").textContent = "날씨 확인 중…";
+  try {
+    const data = await (await api(farmPath("weather"))).json();
+    if (requestedFarm !== farmId) return;
+    $("weather-status").textContent = data.available ? `${data.summary} · 예보이며 현장 측정값이 아닙니다.` : "날씨 정보 없음";
+  } catch {
+    if (requestedFarm !== farmId) return;
+    $("weather-status").textContent = "날씨 정보 없음";
+  }
+}
+
+async function loadLogs() {
+  const requestedFarm = farmId;
+  try {
+    const items = await (await api(farmPath("logs"))).json();
+    if (requestedFarm !== farmId) return;
+    const labels = { work: "작업 완료", symptom: "증상 메모", harvest: "수확" };
+    const nodes = items.map((item) => {
+      const card = element("article", undefined, "card");
+      card.append(element("div", `${item.date} · ${labels[item.type]}`, "calendar-date"), element("p", item.note));
+      if (item.amount !== null) card.append(element("p", `${item.amount} kg`, "fine"));
+      return card;
+    });
+    $("log-content").replaceChildren(...(nodes.length ? nodes : [element("p", "아직 기록이 없습니다.", "empty")]));
+  } catch (error) {
+    if (requestedFarm !== farmId) return;
+    $("log-content").replaceChildren(element("p", friendlyError(error), "empty"));
+  }
+}
+
+$("farm-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (openingFarm || busy || pendingWrites) {
+    $("farm-status").textContent = "현재 요청이 끝난 뒤 등록해 주세요.";
+    return;
+  }
+  openingFarm = true;
+  $("register-farm").disabled = true;
+  $("farm-status").textContent = "과원을 등록하고 있습니다…";
+  const form = new FormData(event.currentTarget);
+  const body = { name: form.get("name"), region: form.get("region"),
+    plantedYear: Number(form.get("plantedYear")), areaM2: Number(form.get("areaM2")) };
+  try {
+    const farm = await (await api("/farms", { method: "POST", body: JSON.stringify(body) })).json();
+    await openFarm(farm);
+    $("farm-status").textContent = "과원을 등록했습니다.";
+  } catch (error) {
+    $("farm-status").textContent = friendlyError(error);
+  } finally {
+    openingFarm = false;
+    $("register-farm").disabled = false;
+  }
+});
+
+$("log-type").addEventListener("change", () => {
+  const harvest = $("log-type").value === "harvest";
+  $("harvest-fields").hidden = !harvest;
+  $("log-amount").disabled = !harvest;
+  $("log-amount").required = harvest;
+});
+
+$("log-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (openingFarm) return;
+  pendingWrites += 1;
+  const body = { type: $("log-type").value, date: $("log-date").value, note: $("log-note").value.trim() };
+  if (body.type === "harvest") body.amount = Number($("log-amount").value);
+  $("save-log").disabled = true;
+  $("log-status").textContent = "기록을 저장하고 있습니다…";
+  try {
+    await api(farmPath("logs"), { method: "POST", body: JSON.stringify(body) });
+    $("log-note").value = "";
+    $("log-amount").value = "";
+    $("log-status").textContent = "기록을 저장했습니다.";
+    await Promise.all([loadLogs(), loadToday()]);
+  } catch (error) {
+    $("log-status").textContent = friendlyError(error);
+  } finally {
+    pendingWrites -= 1;
+    $("save-log").disabled = false;
+  }
+});
+
+const seoulDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+$("farm-year").max = seoulDate.slice(0, 4);
+$("log-date").value = seoulDate;
+$("log-date").max = seoulDate;
+
+async function restoreRegisteredFarm() {
+  let saved;
+  try { saved = localStorage.getItem("gamjaba-farm"); } catch { return; }
+  if (!saved || saved === "demo") return;
+  openingFarm = true;
+  $("global-status").textContent = "등록한 과원을 확인하고 있습니다…";
+  try {
+    const farm = await (await api(`/farms/${encodeURIComponent(saved)}`)).json();
+    await openFarm(farm);
+  } catch (error) {
+    $("global-status").textContent = friendlyError(error);
+  } finally {
+    openingFarm = false;
+  }
+}
+restoreRegisteredFarm();

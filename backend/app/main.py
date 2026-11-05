@@ -2,40 +2,48 @@ import os
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, Query
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from backend.agents.base import Model
 from backend.agents.copilot import CopilotModel
 from backend.agents.fake import FakeModel
 from backend.app.policy import PolicyError
-from backend.app.schemas import ChatInput
+from backend.app.schemas import ChatInput, FarmInput, LogInput
 from backend.app.security import RateLimiter, SecurityMiddleware
 from backend.app.service import AssistantService
 from backend.app.settings import PROJECT_ROOT, Settings
 from backend.app.store import MemoryStore, StoreError
+from backend.app.repository import Repository
+from backend.app.weather import WeatherClient
+from backend.app.telemetry import configure_telemetry
 
 
-DEMO_FARM = {"id": "demo", "farmId": "demo", "name": "청도반시 데모 과원", "cultivar": "청도반시",
-             "region": "청도군 (데모)", "plantedYear": None, "areaM2": None, "isDemo": True,
-             "weather": "날씨 정보 없음", "measurements": "현장 측정 정보 없음"}
-
-
-def create_app(settings: Settings | None = None, model: Model | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, model: Model | None = None,
+               store: Repository | None = None, weather: WeatherClient | None = None) -> FastAPI:
     settings = settings or Settings()
     if model is None:
         mode = os.environ.get("GAMJABA_MODEL", "copilot")
         if mode not in ("copilot", "fake"):
             raise ValueError("GAMJABA_MODEL must be copilot or fake")
         model = FakeModel() if mode == "fake" else CopilotModel()
-    store = MemoryStore(settings.session_ttl, settings.proposal_ttl, settings.max_sessions)
+    if store is None:
+        storage_mode = os.environ.get("GAMJABA_STORE", "memory")
+        if storage_mode == "cosmos":
+            from backend.app.cosmos import CosmosStore
+            store = CosmosStore.from_environment(settings)
+        elif storage_mode == "memory":
+            store = MemoryStore(settings.session_ttl, settings.proposal_ttl, settings.max_sessions)
+        else:
+            raise ValueError("GAMJABA_STORE must be memory or cosmos")
     limiter = RateLimiter(settings.session_rate, settings.ip_rate, settings.rate_window)
-    service = AssistantService(settings, store, model)
+    service = AssistantService(settings, store, model, weather)
     app = FastAPI(title="감잡아", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.service = service
     app.state.store = store
     app.add_middleware(SecurityMiddleware, max_body_bytes=settings.max_body_bytes)
+    configure_telemetry(app)
 
     @app.exception_handler(StoreError)
     async def store_error_handler(request: Request, error: StoreError):
@@ -54,9 +62,8 @@ def create_app(settings: Settings | None = None, model: Model | None = None) -> 
     session_dep = Depends(session)
     api = APIRouter(prefix="/api")
 
-    def check_farm(farm_id: str) -> None:
-        if farm_id != "demo":
-            raise HTTPException(404, "데모 과원을 찾을 수 없습니다.")
+    def check_farm(session_id: str, farm_id: str) -> dict:
+        return store.farm(session_id, farm_id)
 
     @api.get("/health")
     async def health(session_id: str = session_dep):
@@ -65,13 +72,44 @@ def create_app(settings: Settings | None = None, model: Model | None = None) -> 
 
     @api.get("/farms/demo")
     async def demo(session_id: str = session_dep):
-        return {**DEMO_FARM, "sessionId": session_id, "model_mode": model.mode}
+        return {**store.farm(session_id, "demo"), "model_mode": model.mode}
+
+    @api.post("/farms", status_code=201)
+    async def register(body: FarmInput, session_id: str = session_dep):
+        return {**store.create_farm(session_id, body), "model_mode": model.mode}
+
+    @api.get("/farms/{farm_id}")
+    async def farm_details(farm_id: str, session_id: str = session_dep):
+        return {**store.farm(session_id, farm_id), "model_mode": model.mode}
+
+    @api.get("/farms/{farm_id}/logs")
+    async def logs(farm_id: str, session_id: str = session_dep):
+        return store.logs(session_id, farm_id)
+
+    @api.post("/farms/{farm_id}/logs", status_code=201)
+    async def add_log(farm_id: str, body: LogInput, session_id: str = session_dep):
+        return store.add_log(session_id, farm_id, body)
+
+    @api.put("/farms/{farm_id}/logs/{log_id}")
+    async def update_log(farm_id: str, log_id: str, body: LogInput, session_id: str = session_dep):
+        return store.update_log(session_id, farm_id, log_id, body)
+
+    @api.delete("/farms/{farm_id}/logs/{log_id}", status_code=204)
+    async def delete_log(farm_id: str, log_id: str, session_id: str = session_dep):
+        store.delete_log(session_id, farm_id, log_id)
+        return Response(status_code=204)
+
+    @api.get("/farms/{farm_id}/weather")
+    async def weather_forecast(farm_id: str, days: int = Query(default=3, ge=1, le=7),
+                               session_id: str = session_dep):
+        farm = check_farm(session_id, farm_id)
+        return await service.weather.get(farm["region"], days)
 
     @api.get("/farms/{farm_id}/today")
     async def today(farm_id: str, session_id: str = session_dep):
-        check_farm(farm_id)
+        check_farm(session_id, farm_id)
         try:
-            return await service.today(session_id)
+            return await service.today(session_id, farm_id)
         except StoreError:
             raise
         except PolicyError:
@@ -81,13 +119,13 @@ def create_app(settings: Settings | None = None, model: Model | None = None) -> 
 
     @api.post("/farms/{farm_id}/chat")
     async def chat(farm_id: str, body: ChatInput, session_id: str = session_dep):
-        check_farm(farm_id)
-        return StreamingResponse(service.chat(session_id, body.message), media_type="text/event-stream",
+        check_farm(session_id, farm_id)
+        return StreamingResponse(service.chat(session_id, body.message, farm_id), media_type="text/event-stream",
                                  headers={"X-Accel-Buffering": "no"})
 
     @api.get("/farms/{farm_id}/calendar")
     async def calendar(farm_id: str, session_id: str = session_dep):
-        check_farm(farm_id)
+        check_farm(session_id, farm_id)
         return store.calendar(session_id, farm_id)
 
     @api.post("/proposals/{proposal_id}/approve")

@@ -24,5 +24,5 @@ COPY --chown=appuser:appuser frontend frontend
 COPY --chown=appuser:appuser data data
 USER appuser
 EXPOSE 8000
-# Exactly one process: memory, rate limits, cache, and approval lock are process-local.
+# One process keeps request and generation budgets local in either storage mode.
 CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-proxy-headers", "--no-access-log"]
