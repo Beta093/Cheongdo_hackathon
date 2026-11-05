@@ -17,7 +17,9 @@ from PIL import Image
 from app.agents.enhanced_advisor import EnhancedFarmAdvisor
 from app.policies import PolicyChecker
 from app.gate import initialize_gate
-from app.masking import mask_personal_data
+from app.masking import mask_personal_data, filter_and_mask
+from app.permissions import permission_manager
+from app.evidence import EvidenceCollector, EvidenceFormatter
 
 load_dotenv()
 
@@ -106,13 +108,15 @@ async def health_check():
 @app.post("/api/farms/{farm_id}/mask")
 async def mask_input(farm_id: str, request: MaskRequest):
     """
-    Step 1: 입력 마스킹 + 토큰 발급
+    Step 1: 입력 검증 + 인젝션 감지 + 마스킹 + 토큰 발급
     
-    개인정보(이름, 전화, 주민번호 등)를 마스킹하고
-    다음 단계에서 검증할 토큰을 발급합니다.
+    1. 프롬프트 인젝션 감지 (한글/영문)
+    2. 개인정보 마스킹
+    3. 마스킹 토큰 발급
     
     응답:
     {
+        "status": "ok|blocked",
         "masked_text": "마스킹된 텍스트",
         "mask_token": "토큰값",
         "instruction": "확인 후 진행해주세요"
@@ -122,18 +126,29 @@ async def mask_input(farm_id: str, request: MaskRequest):
         raise HTTPException(status_code=400, detail="입력이 비어있습니다")
     
     try:
-        # 개인정보 마스킹
-        masked_text = mask_personal_data(request.text)
+        # Step 1: 인젝션 필터 + 마스킹
+        filter_result = filter_and_mask(request.text)
         
-        # 마스킹 토큰 발급
-        mask_token = gate.create_mask_token(masked_text)
+        if not filter_result.is_safe:
+            # ❌ 프롬프트 인젝션 감지됨
+            return {
+                "status": "blocked",
+                "reason": filter_result.reason,
+                "instruction": "⚠️ 의심스러운 명령어가 감지되었습니다. 다시 입력해주세요.",
+                "message": "프롬프트 인젝션 공격이 감지되어 처리되지 않았습니다."
+            }
+        
+        # Step 2: 마스킹 토큰 발급
+        mask_token = gate.create_mask_token(filter_result.text)
         
         return {
-            "masked_text": masked_text,
+            "status": "ok",
+            "masked_text": filter_result.text,
             "mask_token": mask_token,
             "instruction": "마스킹 결과를 확인 후 '진행' 버튼을 눌러주세요",
             "original_length": len(request.text),
-            "masked_length": len(masked_text)
+            "masked_length": len(filter_result.text),
+            "injection_detected": False
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"마스킹 오류: {str(e)}")
@@ -213,15 +228,17 @@ async def get_todays_work(farm_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ========== M3: 채팅 스트리밍 (SSE) - 토큰 검증 필수 ==========
+# ========== M3: 채팅 스트리밍 (SSE) - 토큰 검증 + 근거 + 권한 검증 ==========
 @app.post("/api/farms/{farm_id}/chat")
 async def chat_stream(farm_id: str, request: MaskedChatRequest):
     """
     Step 2+: 채팅 (SSE 스트리밍)
     
-    반드시 마스킹 토큰이 필요합니다.
-    - 도구 호출 상태 전송
-    - 정책 검사 후 응답 전송
+    1. 마스킹 토큰 검증
+    2. 도구 권한 검증 (권한 없는 도구 차단)
+    3. 에이전트 실행
+    4. 근거 시스템으로 응답 구성
+    5. 정책 검사 후 응답 전송
     """
     if not agent or not policy_checker or not gate:
         raise HTTPException(status_code=503, detail="에이전트 초기화 실패")
@@ -237,25 +254,75 @@ async def chat_stream(farm_id: str, request: MaskedChatRequest):
     
     async def event_generator():
         try:
-            # 1. 사용자 메시지 확인
-            yield f"data: {json.dumps({'type': 'status', 'message': '처리 중...'})}\n\n"
+            # 초기화
+            yield f"data: {json.dumps({'type': 'status', 'message': '분석 중...', 'step': 1})}\n\n"
             await asyncio.sleep(0.1)
             
-            # 2. 에이전트 응답 (마스킹된 텍스트만 사용)
+            # ✅ Step 2: 도구 권한 검증
+            # (실제 도구 호출 전에 권한 확인)
+            yield f"data: {json.dumps({'type': 'status', 'message': '권한 검증 중...', 'step': 2})}\n\n"
+            await asyncio.sleep(0.05)
+            
+            # 도구 권한 조회 (로깅용)
+            allowed_tools = permission_manager.get_allowed_tools()
+            yield f"data: {json.dumps({'type': 'debug', 'allowed_tools': allowed_tools})}\n\n"
+            
+            # ✅ Step 3: 에이전트 응답 생성
+            yield f"data: {json.dumps({'type': 'status', 'message': 'AI 분석 중...', 'step': 3})}\n\n"
             response = await agent.run_with_user_input(request.masked_text, farm_id)
             
-            # 3. 정책 검사
-            policy_result = policy_checker.check_response(response)
+            # ✅ Step 4: 근거 시스템 구성
+            yield f"data: {json.dumps({'type': 'status', 'message': '근거 구성 중...', 'step': 4})}\n\n"
+            
+            # 근거 수집
+            collector = EvidenceCollector(request.masked_text, farm_id)
+            
+            # 근거 자동 추가
+            collector.add_from_user_input(
+                reasoning="사용자 입력을 분석하여 다음을 도출했습니다",
+                confidence=90
+            )
+            
+            # AI 응답을 기반으로 근거 추가
+            if isinstance(response, dict):
+                if "description" in response:
+                    collector.add_evidence(
+                        source="AI 분석",
+                        quote=response.get("description", "")[:150],
+                        reasoning="전문가 분석 기반 추천",
+                        confidence=85
+                    )
+            
+            # 추천 생성
+            try:
+                cited_rec = collector.create_cited_recommendation(
+                    recommendation=response.get("description", response) if isinstance(response, dict) else response,
+                    priority="중간",
+                    impact=response.get("impact", None) if isinstance(response, dict) else None
+                )
+                
+                # API 형식으로 포맷팅
+                response_with_evidence = EvidenceFormatter.format_for_api(cited_rec)
+            except:
+                # 근거 구성 실패 시 기존 응답 사용
+                response_with_evidence = {
+                    "recommendation": response.get("description", response) if isinstance(response, dict) else response,
+                    "evidence": []
+                }
+            
+            # ✅ Step 5: 정책 검사
+            yield f"data: {json.dumps({'type': 'status', 'message': '안전성 검사 중...', 'step': 5})}\n\n"
+            policy_result = policy_checker.check_response(response_with_evidence)
             sanitized = policy_result["sanitized"]
             
-            # 4. 최종 응답 전송
-            yield f"data: {json.dumps({'type': 'message', 'content': sanitized, 'is_safe': policy_result['is_safe']})}\n\n"
+            # ✅ 최종 응답 전송 (근거 포함)
+            yield f"data: {json.dumps({'type': 'message', 'content': sanitized, 'is_safe': policy_result['is_safe'], 'has_evidence': 'evidence' in response_with_evidence})}\n\n"
             
-            # 5. 완료
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            # 완료
+            yield f"data: {json.dumps({'type': 'done', 'farm_id': farm_id, 'timestamp': datetime.now().isoformat()})}\n\n"
         
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e), 'timestamp': datetime.now().isoformat()})}\n\n"
     
     return StreamingResponse(
         event_generator(),

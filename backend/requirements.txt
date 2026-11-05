@@ -4,6 +4,8 @@ python-dotenv>=1.0.0
 pytest>=7.0.0
 requests>=2.30.0
 httpx>=0.24.0
+Pillow>=10.0.0
+python-multipart>=0.0.6
 
 # GitHub Copilot SDK + Microsoft Agent Framework
 github-copilot-sdk>=1.0.0

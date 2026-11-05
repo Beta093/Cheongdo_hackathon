@@ -610,7 +610,7 @@ class EnhancedFarmAdvisor:
         return "\n".join(lines)
     
     def _format_diagnosis_response(self, diagnosis: Dict) -> str:
-        """진단 결과 포맷팅 (향상된 버전)"""
+        """진단 결과 포맷팅 (신뢰도 높은 순서로)"""
         results = diagnosis["results"]
         
         if not results or results[0].get("disease") == "진단 불가":
@@ -632,32 +632,21 @@ class EnhancedFarmAdvisor:
         lines = ["🔍 진단 결과\n"]
         
         for i, result in enumerate(results, 1):
-            confidence_pct = result['confidence'] * 100
-            
-            # 신뢰도 시각화
-            if confidence_pct >= 80:
-                confidence_bar = "█████ (높음)"
-            elif confidence_pct >= 50:
-                confidence_bar = "███░░ (중간)"
-            else:
-                confidence_bar = "██░░░ (낮음)"
-            
-            lines.append(f"질병 #{i}: {result['disease']}")
-            lines.append(f"신뢰도: {confidence_bar} ({confidence_pct:.0f}%)")
+            lines.append(f"{i}. {result['disease']}")
             
             if result.get('matched_symptoms'):
-                lines.append(f"일치 증상: {', '.join(result['matched_symptoms'])}")
+                lines.append(f"   증상: {', '.join(result['matched_symptoms'])}")
             
-            lines.append(f"원인: {result['cause']}")
-            lines.append(f"치료: {result['treatment']}")
-            lines.append(f"예방: {result['prevention']}")
+            lines.append(f"   원인: {result['cause']}")
+            lines.append(f"   치료: {result['treatment']}")
+            lines.append(f"   예방: {result['prevention']}")
             lines.append("")
         
         lines.append("💡 추천:")
         if results[0]['confidence'] >= 0.7:
-            lines.append("신뢰도가 높습니다. 권장된 치료법을 따르세요.")
+            lines.append("높은 신뢰도로 진단되었습니다. 권장된 치료법을 따르세요.")
         else:
-            lines.append("신뢰도가 낮습니다. 사진 제출 또는 현장 방문 진단을 권장합니다.")
+            lines.append("낮은 신뢰도입니다. 사진 제출이나 현장 진단을 권장합니다.")
         
         lines.append("📞 문의: 청도농기원 (054-350-5960)")
         
