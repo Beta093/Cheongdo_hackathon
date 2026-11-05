@@ -3,6 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, Query
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -44,6 +45,13 @@ def create_app(settings: Settings | None = None, model: Model | None = None,
     app.state.store = store
     app.add_middleware(SecurityMiddleware, max_body_bytes=settings.max_body_bytes)
     configure_telemetry(app)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(request: Request, error: RequestValidationError):
+        # Validation inputs can contain the entire attachment; never echo them.
+        return JSONResponse({"detail": [{"loc": item["loc"], "msg": item["msg"],
+                                         "type": item["type"]} for item in error.errors()]},
+                            status_code=422)
 
     @app.exception_handler(StoreError)
     async def store_error_handler(request: Request, error: StoreError):
@@ -120,7 +128,7 @@ def create_app(settings: Settings | None = None, model: Model | None = None,
     @api.post("/farms/{farm_id}/chat")
     async def chat(farm_id: str, body: ChatInput, session_id: str = session_dep):
         check_farm(session_id, farm_id)
-        return StreamingResponse(service.chat(session_id, body.message, farm_id), media_type="text/event-stream",
+        return StreamingResponse(service.chat(session_id, body.message, farm_id, body.image), media_type="text/event-stream",
                                  headers={"X-Accel-Buffering": "no"})
 
     @api.get("/farms/{farm_id}/calendar")

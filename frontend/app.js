@@ -4,6 +4,8 @@ const $ = (id) => document.getElementById(id);
 let sessionId;
 let busy = false;
 let lastQuestion = "";
+let selectedChatFile = null;
+let lastChatImage = null;
 let chatRetries = 0;
 let todayRetries = 0;
 let storageAvailable = true;
@@ -222,15 +224,56 @@ async function readSSE(response, handle) {
   }
 }
 
+function clearChatImage() {
+  selectedChatFile = null;
+  $("chat-image").value = "";
+  $("chat-image-info").textContent = "";
+  $("chat-image-info").hidden = true;
+  $("remove-chat-image").hidden = true;
+  $("chat-image-error").textContent = "";
+}
+
+$("chat-image").addEventListener("change", () => {
+  const file = $("chat-image").files[0];
+  clearChatImage();
+  if (!file) return;
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    $("chat-image-error").textContent = "JPEG, PNG, WebP 사진만 첨부할 수 있습니다.";
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024 || !file.size) {
+    $("chat-image-error").textContent = "사진은 비어 있지 않은 5MB 이하 파일을 선택해 주세요.";
+    return;
+  }
+  selectedChatFile = file;
+  $("chat-image-info").textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+  $("chat-image-info").hidden = false;
+  $("remove-chat-image").hidden = false;
+});
+$("remove-chat-image").addEventListener("click", clearChatImage);
+
+async function encodeChatImage(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  }
+  return { mimeType: file.type, data: btoa(binary) };
+}
+
 async function sendQuestion(question, isRetry = false) {
   if (busy || openingFarm || !question.trim() || question.length > 2000) return;
   busy = true;
   $("send").disabled = true;
+  $("chat-image").disabled = true;
+  $("remove-chat-image").disabled = true;
   $("retry-chat").hidden = true;
+  const file = selectedChatFile;
   if (!isRetry) {
     chatRetries = 0;
     lastQuestion = question;
-    addMessage(question, "user");
+    lastChatImage = null;
+    addMessage(question + (file ? "\n사진 1장 첨부" : ""), "user");
     $("question").value = "";
     updateCount();
   }
@@ -239,7 +282,11 @@ async function sendQuestion(question, isRetry = false) {
   let receivedMessage = false;
   let receivedError = false;
   try {
-    const response = await api(farmPath("chat"), { method: "POST", body: JSON.stringify({ message: question }) });
+    if (!isRetry && file) lastChatImage = await encodeChatImage(file);
+    const payload = { message: question };
+    if (lastChatImage) payload.image = lastChatImage;
+    if (!isRetry) clearChatImage();
+    const response = await api(farmPath("chat"), { method: "POST", body: JSON.stringify(payload) });
     await readSSE(response, (name, data) => {
       if (name === "status") $("chat-status").textContent = data.text;
       if (name === "tool_call") $("chat-status").textContent = "과원과 근거 자료를 확인하고 있습니다…";
@@ -260,11 +307,13 @@ async function sendQuestion(question, isRetry = false) {
   } catch (error) {
     addMessage(friendlyError(error), "error");
     // A delivered final response may already contain a pending proposal; do not duplicate it.
-    $("retry-chat").hidden = receivedMessage || chatRetries >= 2;
+    $("retry-chat").hidden = receivedMessage || chatRetries >= 2 || (file && !lastChatImage);
     $("chat-status").textContent = "연결 상태를 확인해 주세요.";
   } finally {
     busy = false;
     $("send").disabled = false;
+    $("chat-image").disabled = false;
+    $("remove-chat-image").disabled = false;
   }
 }
 
@@ -327,6 +376,8 @@ async function openFarm(farm) {
   }
   todayRetries = chatRetries = 0;
   lastQuestion = "";
+  lastChatImage = null;
+  clearChatImage();
   $("chat-messages").replaceChildren();
   $("chat-status").textContent = "";
   $("retry-chat").hidden = true;

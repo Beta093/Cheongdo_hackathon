@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from backend.agents.base import Model
 from backend.app.knowledge import KnowledgeBase
 from backend.app.policy import BLOCKED, UNCERTAIN, PolicyError, check_text, validate_sources
-from backend.app.schemas import ModelOutput, Notice, Task, Today
+from backend.app.schemas import ChatImage, ModelOutput, Notice, Task, Today
 from backend.app.settings import Settings
 from backend.app.store import StoreError
 from backend.app.repository import Repository
@@ -33,7 +33,7 @@ class AssistantService:
 
     async def _generate(self, session_id: str, mode: str, question: str,
                         queue: asyncio.Queue | None = None,
-                        farm_id: str = "demo") -> tuple[ModelOutput, ToolContext]:
+                        farm_id: str = "demo", image: ChatImage | None = None) -> tuple[ModelOutput, ToolContext]:
         async with self.slots:
             for attempt in range(2):
                 snapshot = {"farm": {key: value for key, value in self.store.farm(session_id, farm_id).items()
@@ -56,7 +56,10 @@ class AssistantService:
                     "untrusted_recent_conversation": self.store.history(session_id, farm_id) if mode == "chat" else [],
                     "format_retry": bool(attempt),
                 }, ensure_ascii=False)
-                raw = await self.model.generate(prompt, context)
+                if image is None:
+                    raw = await self.model.generate(prompt, context)
+                else:
+                    raw = await self.model.generate(prompt, context, image=image)
                 try:
                     if not isinstance(raw, str) or len(raw) > 20000:
                         raise InvalidModelJSON()
@@ -128,14 +131,16 @@ class AssistantService:
                 return result
 
     async def _chat_work(self, session_id: str, question: str, queue: asyncio.Queue,
-                         farm_id: str = "demo") -> None:
+                         farm_id: str = "demo", image: ChatImage | None = None) -> None:
         succeeded = False
         try:
             async with asyncio.timeout(self.settings.model_timeout):
-                output, context = await self._generate(session_id, "chat", question, queue, farm_id)
+                output, context = await self._generate(session_id, "chat", question, queue, farm_id, image)
                 sources, _ = self._validate(output, context)
                 # Unsupported model prose is replaced by a fixed uncertainty notice.
                 answer = output.answer if sources else UNCERTAIN
+                if image:
+                    answer += " 사진만으로 확정할 수 없음, 농업기술센터 확인 필요."
                 proposals = self.store.publish(session_id, context.pending)
                 self.store.remember(session_id, question, answer, farm_id)
                 queue.put_nowait(("message", {
@@ -161,10 +166,11 @@ class AssistantService:
         finally:
             queue.put_nowait(("done", {"ok": succeeded}))
 
-    async def chat(self, session_id: str, question: str, farm_id: str = "demo"):
+    async def chat(self, session_id: str, question: str, farm_id: str = "demo",
+                   image: ChatImage | None = None):
         yield self._sse("status", {"text": "자료를 확인하고 있습니다.", "model_mode": self.model.mode})
         queue: asyncio.Queue = asyncio.Queue()
-        worker = asyncio.create_task(self._chat_work(session_id, question, queue, farm_id))
+        worker = asyncio.create_task(self._chat_work(session_id, question, queue, farm_id, image))
         try:
             while True:
                 try:

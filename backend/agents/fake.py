@@ -2,6 +2,7 @@ import asyncio
 import json
 
 from backend.app.policy import UNCERTAIN
+from backend.app.schemas import ChatImage
 from backend.tools.context import ToolContext
 
 
@@ -15,9 +16,12 @@ class FakeModel:
         self.fail = fail
         self.delay = delay
         self.calls = 0
+        self.last_image: ChatImage | None = None
 
-    async def generate(self, prompt: str, context: ToolContext) -> str:
+    async def generate(self, prompt: str, context: ToolContext,
+                       image: ChatImage | None = None) -> str:
         self.calls += 1
+        self.last_image = image
         if self.delay:
             await asyncio.sleep(self.delay)
         if self.fail:
