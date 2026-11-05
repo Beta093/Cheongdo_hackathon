@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+.venv
+venv
+**/__pycache__
+**/.pytest_cache
+.ruff_cache
+.azure
+references
+backend/tests
+node_modules
+*.log
+*.pem
+*.key

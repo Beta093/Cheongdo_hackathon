@@ -1,0 +1,16 @@
+name: gamjaba
+metadata:
+  template: gamjaba-p0-draft
+infra:
+  provider: bicep
+  path: infra
+  module: main
+services:
+  api:
+    project: .
+    language: py
+    host: containerapp
+    docker:
+      path: Dockerfile
+      context: .
+      remoteBuild: true
