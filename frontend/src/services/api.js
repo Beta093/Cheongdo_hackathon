@@ -14,13 +14,17 @@ export const api = {
     return res.json();
   },
 
-  // SSE 채팅 (스트리밍) - 향상된 파싱
+  // SSE 채팅 (스트리밍) - 마스킹된 텍스트 + 토큰 필요
   streamChat: async (farmId, message, onChunk) => {
     try {
       const response = await fetch(`${API_BASE_URL}/farms/${farmId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ 
+          masked_text: message,  // 실제로는 마스킹된 텍스트
+          mask_token: "",  // 실제로는 마스킹 토큰
+          message 
+        })
       });
 
       if (!response.ok) {

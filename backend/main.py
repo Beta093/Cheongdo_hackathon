@@ -1,6 +1,6 @@
 """FastAPI 백엔드 - 감잝아 AI 에이전트와 연결"""
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
@@ -8,17 +8,23 @@ from pydantic import BaseModel
 import os
 import json
 import asyncio
+import base64
+import io
 from datetime import datetime
 from dotenv import load_dotenv
+from PIL import Image
 
 from app.agents.enhanced_advisor import EnhancedFarmAdvisor
 from app.policies import PolicyChecker
+from app.gate import initialize_gate
+from app.masking import mask_personal_data
 
 load_dotenv()
 
 # 전역 인스턴스
 agent: EnhancedFarmAdvisor = None
 policy_checker: PolicyChecker = None
+gate = None
 
 # 메모리 저장소 (개발용, 실제는 Cosmos DB)
 proposals_db = {}  # {proposal_id: {"status": "pending|approved", ...}}
@@ -30,13 +36,25 @@ class ChatRequest(BaseModel):
     message: str
 
 
+class MaskRequest(BaseModel):
+    text: str
+
+
+class MaskedChatRequest(BaseModel):
+    """마스킹 후 채팅 요청"""
+    masked_text: str
+    mask_token: str
+    message: str
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 시작
-    global agent, policy_checker
+    global agent, policy_checker, gate
     agent = EnhancedFarmAdvisor()
     policy_checker = PolicyChecker()
-    print("✅ 감잡아 AI v2.0 에이전트 + 정책 필터 초기화 완료")
+    gate = initialize_gate()
+    print("✅ 감잡아 AI v2.0 에이전트 + 정책 필터 + 토큰 게이트 초기화 완료")
     yield
     # 종료
     print("🛑 서버 종료")
@@ -82,6 +100,43 @@ async def health_check():
         "version": agent.version if agent else "not initialized",
         "timestamp": datetime.now().isoformat()
     }
+
+
+# ========== M1: 마스킹 (Step 1) ==========
+@app.post("/api/farms/{farm_id}/mask")
+async def mask_input(farm_id: str, request: MaskRequest):
+    """
+    Step 1: 입력 마스킹 + 토큰 발급
+    
+    개인정보(이름, 전화, 주민번호 등)를 마스킹하고
+    다음 단계에서 검증할 토큰을 발급합니다.
+    
+    응답:
+    {
+        "masked_text": "마스킹된 텍스트",
+        "mask_token": "토큰값",
+        "instruction": "확인 후 진행해주세요"
+    }
+    """
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="입력이 비어있습니다")
+    
+    try:
+        # 개인정보 마스킹
+        masked_text = mask_personal_data(request.text)
+        
+        # 마스킹 토큰 발급
+        mask_token = gate.create_mask_token(masked_text)
+        
+        return {
+            "masked_text": masked_text,
+            "mask_token": mask_token,
+            "instruction": "마스킹 결과를 확인 후 '진행' 버튼을 눌러주세요",
+            "original_length": len(request.text),
+            "masked_length": len(masked_text)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"마스킹 오류: {str(e)}")
 
 
 # ========== F1: 데모 과원 ==========
@@ -158,16 +213,25 @@ async def get_todays_work(farm_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ========== F3: 채팅 스트리밍 (SSE) ==========
+# ========== M3: 채팅 스트리밍 (SSE) - 토큰 검증 필수 ==========
 @app.post("/api/farms/{farm_id}/chat")
-async def chat_stream(farm_id: str, request: ChatRequest):
+async def chat_stream(farm_id: str, request: MaskedChatRequest):
     """
-    채팅 (SSE 스트리밍)
+    Step 2+: 채팅 (SSE 스트리밍)
+    
+    반드시 마스킹 토큰이 필요합니다.
     - 도구 호출 상태 전송
     - 정책 검사 후 응답 전송
     """
-    if not agent or not policy_checker:
+    if not agent or not policy_checker or not gate:
         raise HTTPException(status_code=503, detail="에이전트 초기화 실패")
+    
+    # ✅ Step 1: 토큰 검증
+    if not gate.verify_mask_token(request.mask_token, request.masked_text):
+        raise HTTPException(
+            status_code=403, 
+            detail="마스킹 단계를 먼저 완료해주세요. 토큰이 유효하지 않습니다."
+        )
     
     message = request.message
     
@@ -177,8 +241,8 @@ async def chat_stream(farm_id: str, request: ChatRequest):
             yield f"data: {json.dumps({'type': 'status', 'message': '처리 중...'})}\n\n"
             await asyncio.sleep(0.1)
             
-            # 2. 에이전트 응답
-            response = await agent.run_with_user_input(message, farm_id)
+            # 2. 에이전트 응답 (마스킹된 텍스트만 사용)
+            response = await agent.run_with_user_input(request.masked_text, farm_id)
             
             # 3. 정책 검사
             policy_result = policy_checker.check_response(response)
@@ -198,6 +262,60 @@ async def chat_stream(farm_id: str, request: ChatRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"}
     )
+
+
+# ========== 이미지 분석 채팅 ==========
+@app.post("/api/farms/{farm_id}/chat-image")
+async def chat_with_image(farm_id: str, message: str = Form(...), image: UploadFile = File(...)):
+    """
+    이미지를 업로드하고 AI가 분석하는 엔드포인트
+    예: 잎 사진 업로드 → 병해충 진단
+    """
+    if not agent:
+        raise HTTPException(status_code=503, detail="에이전트 초기화 실패")
+    
+    try:
+        # 이미지 읽기
+        image_data = await image.read()
+        img = Image.open(io.BytesIO(image_data))
+        
+        # 이미지 크기 조정 (성능)
+        img.thumbnail((800, 600))
+        
+        # Base64로 인코딩
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode()
+        
+        # 메시지에 이미지 정보 추가
+        enhanced_message = f"{message}\n\n[이미지: {image.filename}]"
+        
+        async def event_generator():
+            try:
+                yield f"data: {json.dumps({'type': 'status', 'message': '이미지 분석 중...'})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # 에이전트 응답
+                response = await agent.run_with_user_input(enhanced_message, farm_id)
+                
+                # 정책 검사
+                policy_result = policy_checker.check_response(response) if policy_checker else {"sanitized": response, "is_safe": True}
+                sanitized = policy_result["sanitized"]
+                
+                yield f"data: {json.dumps({'type': 'message', 'content': sanitized, 'is_safe': policy_result['is_safe']})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"}
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"이미지 처리 실패: {str(e)}")
 
 
 # ========== F4: 일정 제안 및 승인 ==========
