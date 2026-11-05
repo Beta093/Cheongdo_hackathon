@@ -394,15 +394,41 @@ class EnhancedFarmAdvisor:
         return result
     
     def diagnose_disease(self, symptoms: str) -> Dict:
-        """증상 기반 질병 진단"""
+        """증상 기반 질병 진단 (향상된 버전)"""
         results = []
         
+        # 증상 정규화 (소문자, 공백 제거)
+        normalized_symptoms = symptoms.lower().strip()
+        
         for disease, info in self.kb.DISEASE_DIAGNOSIS.items():
-            # 간단한 키워드 매칭
-            if any(kw in symptoms for kw in disease.split()):
+            confidence = 0.0
+            matched_keywords = []
+            
+            # 질병명 직접 언급
+            if disease.lower() in normalized_symptoms:
+                confidence = 0.95
+                matched_keywords.append(disease)
+            else:
+                # 증상 키워드별 점수 계산
+                for symptom_keyword in info["symptoms"]:
+                    if symptom_keyword in normalized_symptoms:
+                        confidence += 0.3
+                        matched_keywords.append(symptom_keyword)
+                
+                # 원인 키워드 (추가 신뢰도)
+                for cause_keyword in info["cause"].split():
+                    if len(cause_keyword) > 2 and cause_keyword in normalized_symptoms:
+                        confidence += 0.1
+                
+                # 신뢰도 범위 제한
+                confidence = min(confidence, 0.9)
+            
+            # 신뢰도 임계값 (30% 이상)
+            if confidence >= 0.3:
                 results.append({
                     "disease": disease,
-                    "confidence": 0.85,
+                    "confidence": round(confidence, 2),
+                    "matched_symptoms": matched_keywords,
                     "symptoms": info["symptoms"],
                     "cause": info["cause"],
                     "treatment": info["treatment"],
@@ -410,17 +436,26 @@ class EnhancedFarmAdvisor:
                     "sources": info["sources"]
                 })
         
+        # 신뢰도 높은 순서로 정렬
+        results.sort(key=lambda x: x["confidence"], reverse=True)
+        
         if not results:
+            # 전문가 상담 권장
             results.append({
                 "disease": "진단 불가",
                 "confidence": 0.0,
-                "recommendation": "전문가(청도농기원 010-XXXX-XXXX) 상담 권장",
+                "recommendation": "입력된 증상으로는 진단할 수 없습니다. 청도농기원(054-350-5960) 또는 전문가 상담을 권장합니다.",
+                "next_steps": [
+                    "🔍 더 자세한 증상 설명 (색상, 크기, 분포 등)",
+                    "📸 사진 첨부 (전문가 상담 시)",
+                    "📞 청도농기원에 직접 문의"
+                ],
                 "sources": []
             })
         
         return {
             "query": symptoms,
-            "results": results,
+            "results": results[:3],  # 상위 3개만 반환
             "timestamp": datetime.now().isoformat()
         }
     
@@ -451,8 +486,68 @@ class EnhancedFarmAdvisor:
         
         return plan
     
+    def _detect_intent(self, user_message: str) -> tuple[str, float]:
+        """사용자 의도 감지 (정교한 버전)"""
+        message_lower = user_message.lower().strip()
+        
+        # 의도별 키워드 그룹 (신뢰도 포함)
+        intents = {
+            "tasks": {
+                "keywords": ["오늘", "할일", "할 일", "작업", "뭐", "뭘", "해야", "할", "추천", "일정"],
+                "base_confidence": 0.95,
+                "negative_keywords": ["내일", "내주", "다음달"]
+            },
+            "diagnosis": {
+                "keywords": ["진단", "병", "증상", "문제", "이상", "아파", "안돼", "어떻게", "색", "점", "가루", "반점", "문제"],
+                "base_confidence": 0.9,
+                "negative_keywords": ["좋은", "잘", "건강"]
+            },
+            "plan": {
+                "keywords": ["계획", "준비", "목표", "앞으로", "다음", "이번", "이번달", "이번주", "주간", "월간", "전략"],
+                "base_confidence": 0.85,
+                "negative_keywords": []
+            },
+            "weather": {
+                "keywords": ["날씨", "기상", "온도", "습도", "비", "맑음", "흐림", "더워", "추워"],
+                "base_confidence": 0.8,
+                "negative_keywords": []
+            }
+        }
+        
+        best_intent = "general"
+        best_score = 0.0
+        
+        for intent_name, intent_data in intents.items():
+            matched_count = 0
+            negative_count = 0
+            
+            # 긍정 키워드 검색
+            for keyword in intent_data["keywords"]:
+                if keyword in message_lower:
+                    matched_count += 1
+            
+            # 부정 키워드 감점
+            for neg_keyword in intent_data["negative_keywords"]:
+                if neg_keyword in message_lower:
+                    negative_count += 1
+            
+            # 스코어 계산 (매칭된 키워드가 있으면 높은 점수)
+            if matched_count > 0:
+                # 신뢰도 = 기본 신뢰도 * (매칭 키워드 수 / 최대 키워드 수) * (1 / (1 + 부정 키워드))
+                # 범위: 0 ~ 1.0
+                normalized_score = min(matched_count / len(intent_data["keywords"]), 1.0)
+                score = intent_data["base_confidence"] * normalized_score / max(1, negative_count + 1)
+                
+                if score > best_score:
+                    best_score = score
+                    best_intent = intent_name
+        
+        return best_intent, best_score
+
+
+
     async def run_with_user_input(self, user_message: str, farm_id: str = "demo") -> str:
-        """사용자 입력 처리 (컨텍스트 기반)"""
+        """사용자 입력 처리 (컨텍스트 기반, 향상된 버전)"""
         
         # 대화 이력 저장
         self.conversation_history.append({
@@ -460,30 +555,34 @@ class EnhancedFarmAdvisor:
             "content": user_message,
             "timestamp": datetime.now().isoformat()
         })
-        
+
         print(f"\n💬 사용자: {user_message}")
         print(f"📍 과원: {farm_id}\n")
         
+        # 의도 감지
+        intent, confidence = self._detect_intent(user_message)
+        print(f"🎯 감지된 의도: {intent} (신뢰도: {confidence:.2%})")
+        
         response = ""
         
-        # 의도 감지 및 응답
-        if any(kw in user_message for kw in ["오늘", "할일", "작업", "뭐"]):
+        # 의도별 처리 (낮은 임계값으로 더 많은 매칭)
+        if intent == "tasks" and confidence > 0.1:
             tasks = self.get_today_tasks(farm_id)
             response = self._format_tasks_response(tasks)
         
-        elif any(kw in user_message for kw in ["진단", "병", "증상", "문제", "왜"]):
+        elif intent == "diagnosis" and confidence > 0.05:
             diagnosis = self.diagnose_disease(user_message)
             response = self._format_diagnosis_response(diagnosis)
         
-        elif any(kw in user_message for kw in ["계획", "준비", "목표", "앞으로"]):
+        elif intent == "plan" and confidence > 0.1:
             plan = self.propose_plan(farm_id)
             response = self._format_plan_response(plan)
         
-        elif any(kw in user_message for kw in ["날씨", "기상", "온도", "습도"]):
+        elif intent == "weather" and confidence > 0.1:
             response = self._get_weather_advice()
         
         else:
-            # 기본 응답
+            # 기본 응답 (신뢰도 낮을 때)
             response = self._get_general_advice(user_message, farm_id)
         
         # 응답 저장
@@ -511,21 +610,59 @@ class EnhancedFarmAdvisor:
         return "\n".join(lines)
     
     def _format_diagnosis_response(self, diagnosis: Dict) -> str:
-        """진단 결과 포맷팅"""
-        if not diagnosis["results"] or diagnosis["results"][0].get("disease") == "진단 불가":
-            return "🤔 증상만으로는 정확한 진단이 어렵습니다.\n청도농기원 전문가 상담(☎)을 권장합니다."
+        """진단 결과 포맷팅 (향상된 버전)"""
+        results = diagnosis["results"]
         
-        lines = ["🔍 진단 결과:\n"]
-        for result in diagnosis["results"]:
-            lines.append(f"질병: {result['disease']} (신뢰도: {result['confidence']*100:.0f}%)")
-            lines.append(f"증상: {result['symptoms']}")
+        if not results or results[0].get("disease") == "진단 불가":
+            result = results[0] if results else {}
+            lines = [
+                "🤔 진단 불가",
+                "",
+                f"{result.get('recommendation', '입력된 증상만으로는 정확한 진단이 어렵습니다.')}",
+                ""
+            ]
+            
+            if result.get("next_steps"):
+                lines.append("다음 단계:")
+                for step in result["next_steps"]:
+                    lines.append(f"  {step}")
+            
+            return "\n".join(lines)
+        
+        lines = ["🔍 진단 결과\n"]
+        
+        for i, result in enumerate(results, 1):
+            confidence_pct = result['confidence'] * 100
+            
+            # 신뢰도 시각화
+            if confidence_pct >= 80:
+                confidence_bar = "█████ (높음)"
+            elif confidence_pct >= 50:
+                confidence_bar = "███░░ (중간)"
+            else:
+                confidence_bar = "██░░░ (낮음)"
+            
+            lines.append(f"질병 #{i}: {result['disease']}")
+            lines.append(f"신뢰도: {confidence_bar} ({confidence_pct:.0f}%)")
+            
+            if result.get('matched_symptoms'):
+                lines.append(f"일치 증상: {', '.join(result['matched_symptoms'])}")
+            
             lines.append(f"원인: {result['cause']}")
             lines.append(f"치료: {result['treatment']}")
             lines.append(f"예방: {result['prevention']}")
             lines.append("")
         
-        lines.append("⚠️ 정확한 진단을 위해 사진 제출 또는 현장 방문 진단을 권장합니다.")
+        lines.append("💡 추천:")
+        if results[0]['confidence'] >= 0.7:
+            lines.append("신뢰도가 높습니다. 권장된 치료법을 따르세요.")
+        else:
+            lines.append("신뢰도가 낮습니다. 사진 제출 또는 현장 방문 진단을 권장합니다.")
+        
+        lines.append("📞 문의: 청도농기원 (054-350-5960)")
+        
         return "\n".join(lines)
+    
     
     def _format_plan_response(self, plan: Dict) -> str:
         """계획 포맷팅"""
