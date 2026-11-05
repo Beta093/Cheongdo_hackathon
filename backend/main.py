@@ -351,11 +351,24 @@ async def chat_with_image(farm_id: str, message: str = Form(...), image: UploadF
         
         # Base64로 인코딩
         buffered = io.BytesIO()
-        img.save(buffered, format="JPEG")
+        
+        # RGBA를 RGB로 변환 (JPEG는 투명도를 지원하지 않음)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+            rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            rgb_img.save(buffered, format="JPEG")
+        else:
+            img.save(buffered, format="JPEG")
+        
         img_base64 = base64.b64encode(buffered.getvalue()).decode()
         
         # 메시지에 이미지 정보 추가
-        enhanced_message = f"{message}\n\n[이미지: {image.filename}]"
+        if message.strip():
+            # 사용자 메시지에 명확한 진단 신호 추가
+            enhanced_message = f"사용자가 제출한 사진 분석 요청입니다.\n\n증상 설명: {message}\n\n이 증상을 바탕으로 감나무의 질병을 진단해주세요. 가능한 질병들을 나열하고 각각의 신뢰도를 표시해주세요."
+        else:
+            # 사용자가 메시지를 입력하지 않으면 기본 분석 프롬프트 사용
+            enhanced_message = f"감나무 잎의 사진이 업로드되었습니다. 사진을 자세히 분석해주세요:\n- 잎의 색상 변화\n- 반점이나 병반의 유무\n- 잎의 크기와 형태\n- 병해충의 징후\n\n분석 결과를 바탕으로 가능한 질병을 진단해주세요."
         
         async def event_generator():
             try:

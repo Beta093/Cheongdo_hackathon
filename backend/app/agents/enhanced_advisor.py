@@ -307,23 +307,23 @@ class KnowledgeBase:
     # 질병 진단 정보
     DISEASE_DIAGNOSIS = {
         "탄저병": {
-            "symptoms": "잎, 열매에 갈색 반점, 검은색 테두리",
+            "symptoms": ["잎에 갈색 반점", "열매에 검은색 테두리"],
             "cause": "고온 다습",
             "treatment": "베노밀, 카르벤다짐 등 살균제 살포",
             "prevention": "배수 개선, 환기 좋게",
             "sources": ["농진청_병해충지침_2024"]
         },
         "흰가루병": {
-            "symptoms": "잎, 신초에 흰색 가루 같은 병반",
+            "symptoms": ["잎에 흰색 가루", "신초에 흰색 병반"],
             "cause": "낮은 습도와 온난",
             "treatment": "황, 트리플루미졸 등 살포",
             "prevention": "통풍 개선, 질소 과다 피하기",
             "sources": ["농진청_병해충지침_2024"]
         },
         "깍지벌레": {
-            "symptoms": "가지, 줄기에 갈색 딱지 같은 곤충",
+            "symptoms": ["가지에 갈색 딱지", "줄기에 곤충 부착"],
             "cause": "월동 후 4월부터 증가",
-            "treatment": "유제 살포 (유황 10배)",
+            "treatment": "유제 살포 (유황 방제 방법은 청도 농업기술센터에 문의해주세요)",
             "prevention": "발아 전 석회유황합제 살포",
             "sources": ["농진청_병해충지침_2024"]
         }
@@ -411,20 +411,21 @@ class EnhancedFarmAdvisor:
             else:
                 # 증상 키워드별 점수 계산
                 for symptom_keyword in info["symptoms"]:
-                    if symptom_keyword in normalized_symptoms:
-                        confidence += 0.3
+                    # 부분 매칭도 포함 (예: "반점" 포함하면 "갈색 반점" 매칭)
+                    if symptom_keyword.split()[0] in normalized_symptoms or symptom_keyword in normalized_symptoms:
+                        confidence += 0.4  # 점수 상향
                         matched_keywords.append(symptom_keyword)
                 
                 # 원인 키워드 (추가 신뢰도)
                 for cause_keyword in info["cause"].split():
                     if len(cause_keyword) > 2 and cause_keyword in normalized_symptoms:
-                        confidence += 0.1
+                        confidence += 0.15  # 점수 상향
                 
                 # 신뢰도 범위 제한
-                confidence = min(confidence, 0.9)
+                confidence = min(confidence, 0.95)
             
-            # 신뢰도 임계값 (30% 이상)
-            if confidence >= 0.3:
+            # 신뢰도 임계값 (낮춤: 20% 이상)
+            if confidence >= 0.2:
                 results.append({
                     "disease": disease,
                     "confidence": round(confidence, 2),
@@ -489,6 +490,10 @@ class EnhancedFarmAdvisor:
     def _detect_intent(self, user_message: str) -> tuple[str, float]:
         """사용자 의도 감지 (정교한 버전)"""
         message_lower = user_message.lower().strip()
+        
+        # 이미지 분석 감지 (최우선)
+        if "이미지" in message_lower or "분석" in message_lower or "사진" in message_lower:
+            return "diagnosis", 0.95
         
         # 의도별 키워드 그룹 (신뢰도 포함)
         intents = {
@@ -634,8 +639,11 @@ class EnhancedFarmAdvisor:
         for i, result in enumerate(results, 1):
             lines.append(f"{i}. {result['disease']}")
             
-            if result.get('matched_symptoms'):
+            # matched_symptoms가 있으면 표시, 없으면 일반적인 증상 표시
+            if result.get('matched_symptoms') and len(result['matched_symptoms']) > 0:
                 lines.append(f"   증상: {', '.join(result['matched_symptoms'])}")
+            elif result.get('symptoms'):
+                lines.append(f"   일반 증상: {', '.join(result['symptoms'])}")
             
             lines.append(f"   원인: {result['cause']}")
             lines.append(f"   치료: {result['treatment']}")
