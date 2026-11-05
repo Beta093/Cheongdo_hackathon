@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#173a26">
+  <meta name="theme-color" content="#f3ead6">
   <meta name="description" content="청도반시 초보 농부를 위한 오늘의 작업 확인 도우미">
   <title>감잡아 · 오늘의 과원</title>
   <link rel="stylesheet" href="/style.css">
@@ -13,129 +13,77 @@
   <a class="skip" href="#main">본문으로 건너뛰기</a>
   <header class="site-header">
     <a class="brand" href="#main" aria-label="감잡아 홈">
-      <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-        <defs>
-          <radialGradient id="bm-body" cx="38%" cy="36%" r="70%">
-            <stop offset="0" stop-color="#ffc27a"/><stop offset=".45" stop-color="#f27a2e"/><stop offset="1" stop-color="#b93a10"/>
-          </radialGradient>
-        </defs>
-        <path d="M24 12c9.5-.4 17 5.8 17 14.6S33.6 42 24 42 7 35.4 7 26.6 14.5 12.4 24 12Z" fill="url(#bm-body)"/>
-        <path d="M24 9c2.2.8 5.4.2 7.6 2-2 1.6-4.6 2-6.6 1.8 1.2 1.8 1 3.8-1 5.4-2-1.6-2.2-3.6-1-5.4-2 .2-4.6-.2-6.6-1.8 2.2-1.8 5.4-1.2 7.6-2Z" fill="#2f6a3e"/>
-        <ellipse cx="17" cy="21" rx="4" ry="2.4" transform="rotate(-30 17 21)" fill="#fff" opacity=".5"/>
-      </svg>
+      <span class="brand-seal" aria-hidden="true">감</span>
       <span class="brand-word">감잡아</span>
     </a>
-    <span class="header-note">청도반시 농사 도우미</span>
+    <span class="header-note">청도반시 농사 수첩</span>
   </header>
   <main id="main" class="shell">
     <section class="hero" aria-labelledby="welcome">
       <div class="hero-copy">
-        <div class="hero-tags">
-          <span class="eyebrow">청도의 계절, 나의 과원</span>
-          <span class="season-chip">11월 · 수확 &amp; 곶감 철</span>
-        </div>
-        <h1 id="welcome">오늘 할 일,<br><span class="hl">차근차근 감잡아요.</span></h1>
-        <p class="lead">자료를 확인하고, 궁금한 것을 묻고,<br>직접 확인한 일정만 과원에 담으세요.</p>
-        <button id="start" class="primary cta" type="button">데모 과원으로 시작 <span class="cta-arrow" aria-hidden="true">→</span></button>
-        <p class="fine">로그인 없이 체험 · 임시 세션 · 현장 측정 정보 없음</p>
-        <ol class="steps" aria-label="이용 순서">
-          <li><span class="step-no" aria-hidden="true">1</span>근거 자료 확인</li>
-          <li><span class="step-no" aria-hidden="true">2</span>편하게 질문</li>
-          <li><span class="step-no" aria-hidden="true">3</span>직접 승인</li>
+        <p class="masthead"><span>청도 반시 농가용</span><span>11월 · 수확, 곶감 깎기</span></p>
+        <h1 id="welcome">오늘 과원에서<br>할 일 보기</h1>
+        <p class="lead">자료 보고, 궁금한 건 묻고, 내가 확인한 일만 달력에 적습니다.</p>
+        <button id="start" class="primary cta" type="button">데모 과원 열기</button>
+        <p class="fine">로그인 없음 · 임시 세션 · 현장 측정값은 들어 있지 않음</p>
+        <ol class="steps" aria-label="쓰는 순서">
+          <li><span class="step-no" aria-hidden="true">1</span>근거 자료 보기</li>
+          <li><span class="step-no" aria-hidden="true">2</span>모르는 것 묻기</li>
+          <li><span class="step-no" aria-hidden="true">3</span>직접 보고 승인</li>
         </ol>
       </div>
       <div class="hero-art" aria-hidden="true">
-        <svg viewBox="0 0 360 360" focusable="false">
-          <defs>
-            <radialGradient id="ha-glow" cx="50%" cy="55%" r="50%">
-              <stop offset="0" stop-color="#ff9a4d" stop-opacity=".55"/><stop offset="1" stop-color="#ff9a4d" stop-opacity="0"/>
-            </radialGradient>
-            <radialGradient id="ha-body" cx="36%" cy="32%" r="75%">
-              <stop offset="0" stop-color="#ffd08a"/><stop offset=".3" stop-color="#fb8a3c"/><stop offset=".68" stop-color="#e85d1f"/><stop offset="1" stop-color="#a8320c"/>
-            </radialGradient>
-            <radialGradient id="ha-dried" cx="35%" cy="30%" r="80%">
-              <stop offset="0" stop-color="#e08a45"/><stop offset=".6" stop-color="#b4521f"/><stop offset="1" stop-color="#7a2a0c"/>
-            </radialGradient>
-            <linearGradient id="ha-leaf" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#7fb36a"/><stop offset="1" stop-color="#24553a"/>
-            </linearGradient>
-          </defs>
-          <circle cx="200" cy="200" r="165" fill="url(#ha-glow)"/>
-          <g class="gotgam">
-            <path d="M52 96V346" stroke="#ead7b1" stroke-width="2.5"/>
-            <g><ellipse cx="52" cy="160" rx="19" ry="25" fill="url(#ha-dried)"/><path d="M42 136c5 3 15 3 20 0-3 6-17 6-20 0Z" fill="#3d5a2c"/><path d="M44 152c4 8 3 18-1 24M60 150c-3 9-2 19 2 24" stroke="#6e2508" stroke-width="1.5" fill="none" opacity=".5"/></g>
-            <g><ellipse cx="52" cy="228" rx="19" ry="25" fill="url(#ha-dried)"/><path d="M42 204c5 3 15 3 20 0-3 6-17 6-20 0Z" fill="#3d5a2c"/><path d="M45 220c4 8 3 18-1 24M60 218c-3 9-2 19 2 24" stroke="#6e2508" stroke-width="1.5" fill="none" opacity=".5"/></g>
-            <g><ellipse cx="52" cy="296" rx="19" ry="25" fill="url(#ha-dried)"/><path d="M42 272c5 3 15 3 20 0-3 6-17 6-20 0Z" fill="#3d5a2c"/><path d="M44 288c4 8 3 18-1 24M60 286c-3 9-2 19 2 24" stroke="#6e2508" stroke-width="1.5" fill="none" opacity=".5"/></g>
-          </g>
-          <path d="M70 52C140 66 190 52 260 64S330 60 352 50" stroke="#5a3b22" stroke-width="9" stroke-linecap="round" fill="none"/>
-          <g class="leaf-a">
-            <path d="M140 60C126 18 82 4 44 14c16 34 52 58 96 46Z" fill="url(#ha-leaf)"/>
-            <path d="M140 60C112 44 80 26 46 15" stroke="#bfe0a8" stroke-width="2" fill="none" opacity=".6"/>
-          </g>
-          <g class="leaf-b">
-            <path d="M238 64c32-40 80-46 112-30-22 36-66 52-112 30Z" fill="url(#ha-leaf)"/>
-            <path d="M238 64c34-14 70-24 110-29" stroke="#bfe0a8" stroke-width="2" fill="none" opacity=".6"/>
-          </g>
-          <ellipse class="fruit-shadow" cx="200" cy="340" rx="96" ry="11" fill="#000" opacity=".28"/>
-          <g class="fruit">
-            <path d="M200 62V108" stroke="#5a3b22" stroke-width="7" stroke-linecap="round"/>
-            <path d="M200 112c68-4 118 38 118 98s-50 102-118 102S82 270 82 210s50-94 118-98Z" fill="url(#ha-body)"/>
-            <path d="M200 124c-9 60-9 124 0 186M150 128c-22 50-20 120 8 176M250 128c22 50 20 120-8 176" stroke="#8f2a0b" stroke-width="2" fill="none" opacity=".14"/>
-            <ellipse cx="148" cy="166" rx="34" ry="19" transform="rotate(-32 148 166)" fill="#fff" opacity=".42"/>
-            <circle cx="178" cy="146" r="6" fill="#fff" opacity=".5"/>
-            <path d="M200 98c14 4 36 0 52 12-14 10-32 14-46 12 8 12 6 26-6 36-12-10-14-24-6-36-14 2-32-2-46-12 16-12 38-8 52-12Z" fill="#2f6a3e"/>
-            <path d="M200 104c8 4 20 3 30 9-9 5-18 6-26 5 4 8 2 15-4 21-6-6-8-13-4-21-8 1-17 0-26-5 10-6 22-5 30-9Z" fill="#4c8a52"/>
-            <circle cx="200" cy="114" r="7" fill="#1c4429"/>
-          </g>
-          <g class="sparkles" fill="#fff4dc">
-            <path class="spark s1" d="M318 120l4 10 10 4-10 4-4 10-4-10-10-4 10-4Z"/>
-            <path class="spark s2" d="M110 300l3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/>
-            <path class="spark s3" d="M330 262l2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5Z"/>
-          </g>
+        <svg viewBox="0 0 200 200" focusable="false">
+          <path class="persimmon-body" d="M101 52c34-2 63 21 64 55 1 33-25 60-63 61-39 1-67-23-68-57-1-33 30-57 67-59Z"/>
+          <path class="persimmon-line" d="M101 52c34-2 63 21 64 55 1 33-25 60-63 61-39 1-67-23-68-57-1-33 30-57 67-59Z M58 86c-6 14-6 30 2 44 M140 74c9 11 13 25 11 39"/>
+          <path class="persimmon-calyx" d="M100 58c-10-1-24-6-32-1 7 6 17 9 26 9-7 6-10 14-8 22 8-3 13-10 15-18 3 8 9 14 17 16 1-8-3-16-10-21 10-1 19-5 25-12-9-4-22 1-33 5Z"/>
+          <path class="persimmon-stem" d="M101 59c0-9 2-16 7-22"/>
         </svg>
       </div>
     </section>
     <p id="global-status" role="status" aria-live="polite"></p>
     <div id="workspace" hidden>
-      <section class="farm-strip" aria-label="과원 정보">
-        <div><span class="eyebrow">나의 데모 과원</span><h2 id="farm-name">청도반시 데모 과원</h2></div>
-        <p id="farm-context"></p>
-      </section>
-      <p id="model-banner" class="notice"></p>
-      <nav class="tabs" aria-label="주요 기능">
-        <a href="#today"><span class="tab-ico" aria-hidden="true">☀</span>오늘의 할 일</a><a href="#chat"><span class="tab-ico" aria-hidden="true">💬</span>농사 질문</a><a href="#calendar"><span class="tab-ico" aria-hidden="true">📅</span>일정 목록</a>
+      <div class="desk-head">
+        <section class="farm-strip" aria-label="과원 정보">
+          <div><span class="eyebrow">데모 과원</span><h2 id="farm-name">청도반시 데모 과원</h2></div>
+          <p id="farm-context"></p>
+        </section>
+        <p id="model-banner" class="notice"></p>
+      </div>
+      <nav class="tabs" aria-label="쓰는 순서대로 이동">
+        <a href="#today"><span class="tab-no" aria-hidden="true">1</span>오늘 할 일</a><a href="#chat"><span class="tab-no" aria-hidden="true">2</span>묻기</a><a href="#calendar"><span class="tab-no" aria-hidden="true">3</span>일정 승인·확인</a>
       </nav>
-      <div class="columns">
+      <div class="columns desk">
         <section id="today" class="panel panel-today" aria-labelledby="today-title">
-          <div class="section-heading"><div><span class="eyebrow" id="today-date"></span><h2 id="today-title">오늘의 할 일</h2></div><span class="ai-label">AI 생성</span></div>
-          <p class="muted">검토된 자료에 근거한 작업만 제안합니다.</p>
+          <div class="section-heading"><div class="heading-text"><span class="sec-no" aria-hidden="true">1</span><span class="eyebrow" id="today-date"></span><h2 id="today-title">오늘 할 일</h2></div><span class="ai-label">AI 생성</span></div>
+          <p class="muted">검토한 자료에 나온 작업만 적었습니다. 일정으로 잡으려면 항목 아래 버튼을 누르세요.</p>
           <div id="today-content" aria-live="polite"></div>
           <button id="retry-today" class="secondary" type="button" hidden>다시 불러오기</button>
         </section>
         <section id="chat" class="panel panel-chat" aria-labelledby="chat-title">
-          <div class="section-heading"><h2 id="chat-title">농사 질문</h2><span class="ai-label">AI 생성</span></div>
-          <p class="muted">수확 준비부터 일정 확인까지, 편하게 물어보세요.</p>
+          <div class="section-heading"><div class="heading-text"><span class="sec-no" aria-hidden="true">2</span><h2 id="chat-title">농사 질문</h2></div><span class="ai-label">AI 생성</span></div>
+          <p class="muted">수확, 곶감, 일정 잡기 등 궁금한 걸 적어 주세요. 답에 붙은 일정 제안은 승인해야 달력에 들어갑니다.</p>
           <div class="quick-questions" aria-label="질문 예시">
-            <button type="button" data-question="수확 전에 무엇을 확인해야 해?">수확 준비</button>
-            <button type="button" data-question="곶감 준비에 필요한 확인 항목을 알려줘">곶감 준비</button>
+            <button type="button" data-question="수확 전에 무엇을 확인해야 해?">수확 전 확인할 것</button>
+            <button type="button" data-question="곶감 준비에 필요한 확인 항목을 알려줘">곶감 준비물</button>
           </div>
           <div id="chat-messages" class="messages" role="log" aria-label="대화 내용" aria-live="polite"></div>
           <p id="chat-status" role="status" aria-live="polite"></p>
           <form id="chat-form">
-            <label for="question">궁금한 점</label>
-            <textarea id="question" name="question" maxlength="2000" rows="3" required placeholder="예: 수확 준비 점검을 오늘 일정으로 제안해줘"></textarea>
-            <div class="form-bottom"><span id="char-count" class="fine">0 / 2,000자</span><button id="send" class="primary" type="submit">질문 보내기 <span aria-hidden="true">↑</span></button></div>
+            <label for="question">물어볼 내용</label>
+            <textarea id="question" name="question" maxlength="2000" rows="3" required placeholder="예: 수확 준비 점검을 오늘 일정으로 잡아줘"></textarea>
+            <div class="form-bottom"><span id="char-count" class="fine">0 / 2,000자</span><button id="send" class="primary" type="submit">보내기</button></div>
           </form>
           <button id="retry-chat" class="secondary" type="button" hidden>질문 다시 보내기</button>
         </section>
+        <section id="calendar" class="panel panel-calendar" aria-labelledby="calendar-title">
+          <div class="section-heading"><div class="heading-text"><span class="sec-no" aria-hidden="true">3</span><span class="eyebrow">내가 승인한 것만</span><h2 id="calendar-title">일정</h2></div><button id="refresh-calendar" class="secondary" type="button">새로고침</button></div>
+          <p class="muted">승인한 일정이 날짜와 함께 여기 적힙니다.</p>
+          <div id="calendar-content" aria-live="polite"></div>
+        </section>
       </div>
-      <section id="calendar" class="panel panel-calendar" aria-labelledby="calendar-title">
-        <div class="section-heading"><div><span class="eyebrow">내가 확인한 작업</span><h2 id="calendar-title">일정 목록</h2></div><button id="refresh-calendar" class="secondary" type="button"><span aria-hidden="true">↻</span> 새로고침</button></div>
-        <p class="muted">채팅의 일정 제안을 승인하면 여기에 표시됩니다.</p>
-        <div id="calendar-content" aria-live="polite"></div>
-      </section>
     </div>
-    <footer>AI 답변은 현장 판단을 대신하지 않습니다. 근거가 부족하면 청도군 농업기술센터에 확인하세요.<br>일정·대화는 임시 저장되며, 세션 만료 또는 서버 재시작 시 사라집니다.</footer>
+    <footer>AI 답변은 현장 판단을 대신하지 않습니다. 근거가 부족하면 청도군 농업기술센터에 확인하세요.<br>일정과 대화는 임시 저장이라, 세션이 끝나거나 서버가 다시 켜지면 지워집니다.</footer>
   </main>
 </body>
 </html>
