@@ -96,7 +96,7 @@ flowchart LR
 
 ## 10. 저장소 구조 (제안)
 ```
-/AGENTS.md  /PRD.md  /TRD.md  /TDD.md  /README.md
+/references (AGENTS.md, PRD.md, TRD.md, TDD.md 초안; 제출 시 PRD.md/TRD.md는 저장소 루트에 필요)  /README.md
 /backend    (app/, agents/, tools/, tests/)
 /frontend   (src/, tests/)
 /data/knowledge
