@@ -4,19 +4,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 import os
 import json
 import asyncio
 from datetime import datetime
 from dotenv import load_dotenv
 
-from app.agents.farm_advisor import FarmAdvisorAgent
+from app.agents.enhanced_advisor import EnhancedFarmAdvisor
 from app.policies import PolicyChecker
 
 load_dotenv()
 
 # 전역 인스턴스
-agent: FarmAdvisorAgent = None
+agent: EnhancedFarmAdvisor = None
 policy_checker: PolicyChecker = None
 
 # 메모리 저장소 (개발용, 실제는 Cosmos DB)
@@ -24,13 +25,18 @@ proposals_db = {}  # {proposal_id: {"status": "pending|approved", ...}}
 calendar_events_db = {}  # {farm_id: [events]}
 
 
+# Request 모델
+class ChatRequest(BaseModel):
+    message: str
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 시작
     global agent, policy_checker
-    agent = FarmAdvisorAgent()
+    agent = EnhancedFarmAdvisor()
     policy_checker = PolicyChecker()
-    print("✅ 감잡아 에이전트 + 정책 필터 초기화 완료")
+    print("✅ 감잡아 AI v2.0 에이전트 + 정책 필터 초기화 완료")
     yield
     # 종료
     print("🛑 서버 종료")
@@ -154,7 +160,7 @@ async def get_todays_work(farm_id: str):
 
 # ========== F3: 채팅 스트리밍 (SSE) ==========
 @app.post("/api/farms/{farm_id}/chat")
-async def chat_stream(farm_id: str, message: str):
+async def chat_stream(farm_id: str, request: ChatRequest):
     """
     채팅 (SSE 스트리밍)
     - 도구 호출 상태 전송
@@ -162,6 +168,8 @@ async def chat_stream(farm_id: str, message: str):
     """
     if not agent or not policy_checker:
         raise HTTPException(status_code=503, detail="에이전트 초기화 실패")
+    
+    message = request.message
     
     async def event_generator():
         try:
