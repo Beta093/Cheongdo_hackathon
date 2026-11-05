@@ -546,3 +546,192 @@ footer {
   .ai-label, .evidence, .proposal > h3 { border-color: CanvasText; }
   button { border: 1px solid ButtonText; }
 }
+
+/* P1 forms reuse the existing paper, rule and type tokens. */
+.record-form { margin-block: 1rem; }
+.record-form label { display: block; margin-block: .65rem .2rem; }
+.record-form input, .record-form select {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: .55rem .7rem;
+  border: 1px solid var(--rule);
+  border-radius: .2rem;
+  background: var(--sheet);
+  color: var(--ink);
+  font: inherit;
+}
+.record-form :where(input, select):focus-visible {
+  outline: .1875rem solid var(--ink);
+  outline-offset: .15rem;
+}
+.record-form .form-bottom { margin-top: .75rem; }
+
+/* ---------- 작업 화면: 한 면씩 보는 탭 방식 ---------- */
+html { scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+body.has-tabbar { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+
+/* 단계 번호는 탭에서 의미가 없으므로 숨기고, 제목 칸을 한 줄 흐름으로 */
+#workspace .sec-no { display: none; }
+#workspace .heading-text { display: block; }
+#workspace .heading-text > .eyebrow { display: block; }
+#workspace .heading-text > .eyebrow:empty { display: none; }
+
+/* 3단 배치 대신 한 면만 */
+#workspace .desk { display: block; max-width: 52rem; margin: 1.5rem auto 0; }
+#workspace .panel:focus-visible { outline: .1875rem solid var(--ink); outline-offset: .3rem; }
+#workspace .panel-today { margin-right: 0; padding-right: 0; border-right: 0; }
+#workspace .panel-calendar { margin-left: 0; padding: .2rem 0 0; border-left: 0; border-top: .25rem double var(--ink); }
+#workspace .panel-calendar .section-heading { flex-direction: row; align-items: flex-end; }
+.panel-records { padding-top: .2rem; border-top: .2rem solid var(--pine); }
+.records-list-title { margin: 1.5rem 0 0; padding-bottom: .35rem; font-family: var(--serif); border-bottom: 1px solid var(--ink); }
+
+#log-content { display: grid; gap: 1rem; margin-top: 1rem; }
+#log-content .card {
+  padding: 0 1rem .9rem;
+  background: #fffdf6;
+  border: 1px solid var(--rule);
+  border-top: .35rem solid var(--pine);
+  overflow-wrap: anywhere;
+}
+#log-content .calendar-date { color: var(--pine); }
+
+@media (min-width: 48rem) {
+  #workspace #calendar-content, #log-content { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }
+  #log-content > .empty { grid-column: 1 / -1; }
+}
+
+/* 하단 고정 메뉴: 장부 아래 띠 */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: var(--sheet);
+  border-top: .25rem double var(--ink);
+  padding: 0 clamp(.25rem, 2vw, 1rem) env(safe-area-inset-bottom);
+}
+.tabbar-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 52rem;
+  margin: 0 auto;
+}
+.tabbar-tab {
+  position: relative;
+  flex-direction: column;
+  gap: .15rem;
+  min-height: 4rem;
+  padding: .5rem .25rem .45rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+.tabbar-tab + .tabbar-tab { border-left: 1px solid var(--rule-soft); }
+.tab-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tabbar-tab[aria-selected="true"] { color: var(--kam-ink); background: var(--kam-pale); }
+.tabbar-tab[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 18%;
+  right: 18%;
+  height: .2rem;
+  background: var(--kam);
+}
+.tabbar-tab[aria-selected="true"] span { text-decoration: underline; text-decoration-thickness: .1rem; text-underline-offset: .25em; }
+.tabbar-tab:focus-visible { outline-offset: -.3rem; }
+@media (hover: hover) {
+  .tabbar-tab:hover:not([aria-selected="true"]) { color: var(--ink); background: var(--paper-2); }
+}
+@media (forced-colors: active) {
+  .tabbar-tab[aria-selected="true"] { border: 1px solid Highlight; }
+  .tabbar-tab[aria-selected="true"]::before { background: Highlight; }
+}
+
+/* ---------- 폰 화면 프레임: 어느 화면에서나 세로형 한 장 ---------- */
+html { scroll-padding: 0; }
+body, body.has-tabbar {
+  --frame-pad: clamp(.5rem, 3vh, 1.5rem);
+  --frame-h: min(calc(100vh - 2 * var(--frame-pad)), 54rem);
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: var(--frame-pad);
+  background: var(--paper-2);
+}
+@supports (height: 100dvh) {
+  body, body.has-tabbar { --frame-h: min(calc(100dvh - 2 * var(--frame-pad)), 54rem); height: 100dvh; }
+}
+.phone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 26rem, calc(var(--frame-h) * 9 / 19.5));
+  height: var(--frame-h);
+  overflow: hidden;
+  background: var(--paper);
+  border: .25rem double var(--ink);
+  border-radius: .6rem;
+}
+.phone-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding: 1rem 0;
+}
+.phone .tabbar {
+  position: static;
+  flex: none;
+  padding: 0 .25rem env(safe-area-inset-bottom);
+}
+
+/* 프레임 안에서는 항상 한 열 · 폰 크기 글씨 (vw 기반 값을 고정) */
+.phone .site-header, .phone .shell { max-width: none; padding-inline: 1rem; }
+.phone .brand { font-size: 1.4rem; }
+.phone h1 { font-size: 2.25rem; }
+.phone h2 { font-size: 1.35rem; }
+.phone .hero { grid-template-columns: minmax(0, 1fr); align-items: start; padding: 1.25rem 0 1.5rem; }
+.phone .hero-art { order: -1; width: 6.5rem; margin: 0 .5rem -2.5rem 0; transform: none; }
+.phone .desk-head { grid-template-columns: minmax(0, 1fr); align-items: start; gap: .7rem; }
+.phone #workspace .desk { margin-top: 1.25rem; }
+.phone .panel-chat { padding: 1rem; }
+.phone #workspace #calendar-content, .phone #log-content { grid-template-columns: minmax(0, 1fr); }
+.phone .messages { max-height: 26rem; }
+
+/* 실제 폰: 테두리 없이 전체 화면 */
+@media (max-width: 30rem) {
+  body, body.has-tabbar { --frame-pad: 0; --frame-h: 100vh; padding: 0; background: var(--paper); }
+  .phone { width: 100%; border: 0; border-radius: 0; }
+  @supports (height: 100dvh) { body, body.has-tabbar { --frame-h: 100dvh; } }
+}
+
+/* desktop: scale the whole phone frame up */
+@media (min-width: 30.01rem) {
+  html { font-size: 125%; }
+}
+
+/* slim scrollbar inside the phone frame */
+#screen::-webkit-scrollbar { width: .5rem; }
+#screen::-webkit-scrollbar-track { background: transparent; }
+#screen::-webkit-scrollbar-thumb { background: var(--rule); border-radius: .25rem; }
+@supports not selector(::-webkit-scrollbar) {
+  #screen { scrollbar-width: thin; }
+}

@@ -4,8 +4,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import Callable
+from uuid import uuid4
+from copy import deepcopy
 
-from backend.app.schemas import CalendarEvent, Proposal, Today
+from backend.app.schemas import CalendarEvent, FarmInput, LogInput, LogEntry, Proposal, Today
+from backend.app.repository import DEMO_FARM
 
 
 class StoreError(Exception):
@@ -23,6 +26,10 @@ class Session:
     history: list[dict[str, str]] = field(default_factory=list)
     cache: dict[str, Today] = field(default_factory=dict)
     today_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    farms: dict[str, dict] = field(default_factory=dict)
+    logs: dict[str, LogEntry] = field(default_factory=dict)
+    revisions: dict[str, int] = field(default_factory=dict)
+    histories: dict[str, list[dict[str, str]]] = field(default_factory=dict)
 
 
 class MemoryStore:
@@ -57,8 +64,15 @@ class MemoryStore:
     def publish(self, session_id: str, proposals: list[Proposal]) -> list[Proposal]:
         with self.lock:
             session = self._session(session_id)
-            if len(session.proposals) + len(proposals) > 100:
-                raise StoreError(409, "세션의 제안 한도에 도달했습니다.")
+            for item in proposals:
+                self.farm(session_id, item.farmId)
+                if item.event.farmId != item.farmId or item.event.sessionId != session_id:
+                    raise StoreError(409, "올바르지 않은 제안입니다.")
+            farm_ids = {p.farmId for p in proposals}
+            if len(farm_ids) > 1:
+                raise StoreError(409, "한 과원의 제안만 함께 등록할 수 있습니다.")
+            if sum(p.farmId in farm_ids for p in session.proposals.values()) + len(proposals) > 100:
+                raise StoreError(409, "과원의 제안 한도에 도달했습니다.")
             # Validate the entire batch before any write.
             if any(p.sessionId != session_id or p.status != "pending" or p.id in session.proposals
                    for p in proposals):
@@ -88,6 +102,7 @@ class MemoryStore:
             if action == "approve":
                 session.events[item.event.id] = item.event.model_copy(deep=True)
                 item.status = "approved"
+                self._invalidate(session, item.farmId)
                 return session.events[item.event.id].model_copy(deep=True)
             if action != "reject":
                 raise StoreError(400, "올바르지 않은 처리입니다.")
@@ -96,24 +111,104 @@ class MemoryStore:
 
     def calendar(self, session_id: str, farm_id: str) -> list[CalendarEvent]:
         with self.lock:
+            self.farm(session_id, farm_id)
             session = self._session(session_id)
             return sorted([event.model_copy(deep=True) for event in session.events.values()
                            if event.farmId == farm_id], key=lambda event: (event.date, event.id))
 
-    def history(self, session_id: str) -> list[dict[str, str]]:
+    def history(self, session_id: str, farm_id: str = "demo") -> list[dict[str, str]]:
         with self.lock:
-            return [dict(turn) for turn in self._session(session_id).history]
+            self.farm(session_id, farm_id)
+            return deepcopy(self._session(session_id).histories.get(farm_id, []))
 
-    def remember(self, session_id: str, question: str, answer: str) -> None:
+    def remember(self, session_id: str, question: str, answer: str, farm_id: str = "demo") -> None:
         with self.lock:
+            self.farm(session_id, farm_id)
             session = self._session(session_id)
-            session.history = (session.history + [{"user": question, "assistant": answer}])[-4:]
+            session.histories[farm_id] = (session.histories.get(farm_id, []) + [
+                {"user": question, "assistant": answer}])[-4:]
 
     def cached(self, session_id: str, key: str) -> Today | None:
         with self.lock:
             value = self._session(session_id).cache.get(key)
             return value.model_copy(deep=True) if value else None
 
-    def cache(self, session_id: str, key: str, value: Today) -> None:
+    def cache(self, session_id: str, key: str, value: Today, revision: int | None = None) -> None:
         with self.lock:
-            self._session(session_id).cache = {key: value.model_copy(deep=True)}
+            session = self._session(session_id)
+            if revision is None or revision == session.revisions.get(value.farmId, 0):
+                session.cache = {k: v for k, v in session.cache.items()
+                                 if v.farmId != value.farmId}
+                session.cache[key] = value.model_copy(deep=True)
+
+    def farm(self, session_id: str, farm_id: str) -> dict:
+        with self.lock:
+            session = self._session(session_id)
+            if farm_id == "demo":
+                return {**DEMO_FARM, "sessionId": session_id}
+            farm = session.farms.get(farm_id)
+            if farm is None:
+                raise StoreError(404, "과원을 찾을 수 없습니다.")
+            return deepcopy(farm)
+
+    def create_farm(self, session_id: str, value: FarmInput) -> dict:
+        with self.lock:
+            session = self._session(session_id)
+            if len(session.farms) >= 20:
+                raise StoreError(409, "과원 등록 한도에 도달했습니다.")
+            farm_id = str(uuid4())
+            farm = {**value.model_dump(), "id": farm_id, "farmId": farm_id,
+                    "sessionId": session_id, "isDemo": False,
+                    "weather": "날씨 정보 없음", "measurements": "현장 측정 정보 없음"}
+            session.farms[farm_id] = farm
+            return deepcopy(farm)
+
+    def logs(self, session_id: str, farm_id: str) -> list[LogEntry]:
+        with self.lock:
+            self.farm(session_id, farm_id)
+            return sorted([item.model_copy(deep=True) for item in self._session(session_id).logs.values()
+                           if item.farmId == farm_id], key=lambda item: (item.date, item.id), reverse=True)
+
+    def add_log(self, session_id: str, farm_id: str, value: LogInput) -> LogEntry:
+        with self.lock:
+            self.farm(session_id, farm_id)
+            session = self._session(session_id)
+            if len(self.logs(session_id, farm_id)) >= 200:
+                raise StoreError(409, "과원의 기록 한도에 도달했습니다.")
+            item = LogEntry(**value.model_dump(), id=str(uuid4()), farmId=farm_id, sessionId=session_id)
+            session.logs[item.id] = item
+            self._invalidate(session, farm_id)
+            return item.model_copy(deep=True)
+
+    def revision(self, session_id: str, farm_id: str) -> int:
+        with self.lock:
+            self.farm(session_id, farm_id)
+            return self._session(session_id).revisions.get(farm_id, 0)
+
+    def update_log(self, session_id: str, farm_id: str, log_id: str, value: LogInput) -> LogEntry:
+        with self.lock:
+            self._log(session_id, farm_id, log_id)
+            session = self._session(session_id)
+            item = LogEntry(**value.model_dump(), id=log_id, farmId=farm_id, sessionId=session_id)
+            session.logs[log_id] = item
+            self._invalidate(session, farm_id)
+            return item.model_copy(deep=True)
+
+    def delete_log(self, session_id: str, farm_id: str, log_id: str) -> None:
+        with self.lock:
+            self._log(session_id, farm_id, log_id)
+            session = self._session(session_id)
+            del session.logs[log_id]
+            self._invalidate(session, farm_id)
+
+    def _log(self, session_id: str, farm_id: str, log_id: str) -> LogEntry:
+        self.farm(session_id, farm_id)
+        item = self._session(session_id).logs.get(log_id)
+        if item is None or item.farmId != farm_id:
+            raise StoreError(404, "기록을 찾을 수 없습니다.")
+        return item
+
+    @staticmethod
+    def _invalidate(session: Session, farm_id: str) -> None:
+        session.revisions[farm_id] = session.revisions.get(farm_id, 0) + 1
+        session.cache = {key: value for key, value in session.cache.items() if value.farmId != farm_id}

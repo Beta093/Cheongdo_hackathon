@@ -17,3 +17,4 @@ class Settings:
     max_model_concurrency: int = 2
     max_sessions: int = 1000
     max_body_bytes: int = 16384
+    weather_timeout: float = 3.0

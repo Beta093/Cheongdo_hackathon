@@ -12,6 +12,8 @@ __pycache__/
 htmlcov/
 .azure/
 node_modules/
+playwright-report/
+test-results/
 dist/
 *.log
 *.pem

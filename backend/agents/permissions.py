@@ -1,7 +1,7 @@
 from typing import Any
 
 
-ALLOWED_TOOLS = frozenset({"search_knowledge", "propose_calendar_event"})
+ALLOWED_TOOLS = frozenset({"search_knowledge", "propose_calendar_event", "get_farm_context", "get_weather"})
 
 
 def permission_allowed(request: Any) -> bool:

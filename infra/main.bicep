@@ -9,6 +9,12 @@ param location string
 @description('Inject through a secure deployment parameter. Never commit a token.')
 param copilotGithubToken string
 
+@secure()
+param weatherApiKey string = ''
+
+@allowed(['memory', 'cosmos'])
+param storageMode string = 'memory'
+
 @description('The azd deploy step replaces the bootstrap image with the ACR build.')
 param containerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
@@ -28,6 +34,8 @@ module app './resources.bicep' = {
     location: location
     environmentName: environmentName
     copilotGithubToken: copilotGithubToken
+    weatherApiKey: weatherApiKey
+    storageMode: storageMode
     containerImage: containerImage
   }
 }

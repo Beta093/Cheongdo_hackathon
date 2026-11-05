@@ -22,6 +22,8 @@ class FakeModel:
             await asyncio.sleep(self.delay)
         if self.fail:
             raise RuntimeError("sensitive-error")
+        farm_context = context.get_farm_context(context.farm_id)
+        await context.get_weather(farm_context["farm"]["region"], 3)
         results = context.search_knowledge("수확 곶감 준비")["results"]
         if self.raw_output is not None:
             return self.raw_output
@@ -32,8 +34,10 @@ class FakeModel:
         title = entry["task_title"]
         reason = entry["content"][:500]
         task = {"title": title, "reason": reason, "source_ids": [entry["id"]]}
+        completed = any(item["type"] == "work" and item["date"] == context.today.isoformat()
+                        and item["note"] == title for item in farm_context["logs"])
         data = json.loads(prompt)
         if context.mode == "chat" and "일정" in data["untrusted_user_input"]:
             context.propose_calendar_event(title, context.today.isoformat(), reason, [entry["id"]])
         return json.dumps({"answer": reason, "source_ids": [entry["id"]],
-                           "tasks": [task] if context.mode == "today" else []}, ensure_ascii=False)
+                           "tasks": [task] if context.mode == "today" and not completed else []}, ensure_ascii=False)

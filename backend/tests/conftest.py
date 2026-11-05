@@ -1,12 +1,27 @@
+import os
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.agents.fake import FakeModel
-from backend.app.main import create_app
-from backend.app.settings import Settings
+# Protect module-level app creation as well as individual fixtures from an
+# operator's live integration environment. Tests never bootstrap external clients.
+os.environ["GAMJABA_STORE"] = "memory"
+os.environ["GAMJABA_MODEL"] = "fake"
+for integration in ("WEATHER_API_KEY", "APPLICATIONINSIGHTS_CONNECTION_STRING"):
+    os.environ.pop(integration, None)
+
+from backend.agents.fake import FakeModel  # noqa: E402
+from backend.app.main import create_app  # noqa: E402
+from backend.app.settings import Settings  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def offline_integrations(monkeypatch):
+    for name in ("WEATHER_API_KEY", "APPLICATIONINSIGHTS_CONNECTION_STRING"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GAMJABA_STORE", "memory")
 
 
 @pytest.fixture
